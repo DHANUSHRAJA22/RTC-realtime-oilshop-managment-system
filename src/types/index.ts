@@ -37,7 +37,7 @@ export interface Product {
 export interface OrderItem {
   productId: string;
   name: string;
-  quantity: number;
+  quantity: number; // enforced as integer
   price: number;
   unit: string;
 }
@@ -64,7 +64,7 @@ export interface Sale {
   productName: string;
   customerName: string;
   customerPhone: string;
-  quantity: number;
+  quantity: number; // enforced as integer
   unit: string;
   unitPrice: number;
   totalAmount: number;
@@ -99,7 +99,7 @@ export interface Bill {
 export interface BillItem {
   productId: string;
   productName: string;
-  quantity: number;
+  quantity: number; // enforced as integer
   unit: string;
   unitPrice: number;
   totalPrice: number;
@@ -110,7 +110,7 @@ export interface StockAdjustment {
   productId: string;
   productName: string;
   adjustmentType: 'increase' | 'decrease' | 'correction';
-  quantity: number;
+  quantity: number; // enforced as integer
   unit: string;
   reason: string;
   reasonCode: 'damaged' | 'expired' | 'theft' | 'recount' | 'supplier_return' | 'other';
@@ -131,7 +131,7 @@ export interface TransferRequest {
   toWarehouse: string;
   productId: string;
   productName: string;
-  quantity: number;
+  quantity: number; // enforced as integer
   unit: string;
   reason: string;
   requestedBy: string;
@@ -187,7 +187,7 @@ export interface CreditRequest {
 
 export interface CartItem {
   product: Product;
-  quantity: number;
+  quantity: number; // enforced as integer
 }
 
 export interface DailySalesReport {
@@ -199,7 +199,7 @@ export interface DailySalesReport {
   creditSales: number;
   topProducts: Array<{
     productName: string;
-    quantitySold: number;
+    quantitySold: number; // enforced as integer
     revenue: number;
   }>;
 }
@@ -213,7 +213,7 @@ export interface ValidationRules {
 export const VALIDATION_PATTERNS: ValidationRules = {
   phone: /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4}$/,
   email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-  quantity: /^[0-9]+$/
+  quantity: /^[1-9]\d*$/ // integers only, starting from 1
 };
 
 export interface ReportData {
@@ -223,7 +223,7 @@ export interface ReportData {
     averageOrderValue: number;
     topProducts: Array<{
       name: string;
-      quantity: number;
+      quantity: number; // enforced as integer
       revenue: number;
     }>;
   };
@@ -278,6 +278,7 @@ export interface PendingPayment {
   staffName: string;
   status: 'pending' | 'paid' | 'partial';
   dueDate: Timestamp;
+  paidAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -288,6 +289,8 @@ export interface MarketCredit {
   customerPhone: string;
   amount: number;
   description: string;
+  paid?: boolean;
+  paidAt?: Timestamp;
   createdBy: string;
   createdByName: string;
   createdAt: Timestamp;

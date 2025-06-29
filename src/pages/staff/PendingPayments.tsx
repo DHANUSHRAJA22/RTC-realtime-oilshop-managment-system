@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, where, doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { Clock, DollarSign, User, Phone, Calendar, CheckCircle, AlertTriangle, Search, Filter } from 'lucide-react';
+import { Clock, DollarSign, User, Phone, Calendar, CheckCircle, AlertTriangle, Search, Filter, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { PendingPayment } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,6 +18,9 @@ export default function PendingPayments() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [processing, setProcessing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<PendingPayment | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
   const { userProfile } = useAuth();
 
   useEffect(() => {
@@ -45,34 +48,51 @@ export default function PendingPayments() {
     }
   };
 
-  const handleMarkAsPaid = async (paymentId: string, amount: number) => {
-    if (!userProfile) return;
+  const handleMarkAsPaid = (payment: PendingPayment) => {
+    setSelectedPayment(payment);
+    setPaymentAmount(payment.pendingAmount.toString());
+    setShowPaymentModal(true);
+  };
 
-    const confirmedAmount = prompt(`Enter the amount received (₹${formatCurrency(amount)}):`);
-    if (!confirmedAmount) return;
+  const processPayment = async () => {
+    if (!userProfile || !selectedPayment) return;
 
-    const receivedAmount = parseNumber(confirmedAmount);
+    const receivedAmount = parseNumber(paymentAmount);
     if (receivedAmount <= 0) {
       toast.error('Please enter a valid amount');
       return;
     }
 
+    if (receivedAmount > selectedPayment.pendingAmount) {
+      toast.error('Amount cannot exceed pending amount');
+      return;
+    }
+
     setProcessing(true);
     try {
+      const newPaidAmount = parseNumber(selectedPayment.paidAmount) + receivedAmount;
+      const newPendingAmount = parseNumber(selectedPayment.totalAmount) - newPaidAmount;
+      const newStatus = newPendingAmount <= 0 ? 'paid' : 'partial';
+
       const updateData: any = {
-        status: receivedAmount >= amount ? 'paid' : 'partial',
-        paidAmount: (parseNumber(pendingPayments.find(p => p.id === paymentId)?.paidAmount) || 0) + receivedAmount,
+        paidAmount: newPaidAmount,
+        pendingAmount: Math.max(0, newPendingAmount),
+        status: newStatus,
         updatedAt: Timestamp.now(),
         updatedBy: userProfile.id
       };
 
-      if (receivedAmount < amount) {
-        updateData.pendingAmount = amount - receivedAmount;
+      if (newStatus === 'paid') {
+        updateData.paidAt = Timestamp.now();
       }
 
-      await updateDoc(doc(db, 'pendingPayments', paymentId), updateData);
+      await updateDoc(doc(db, 'pendingPayments', selectedPayment.id), updateData);
       
-      toast.success(receivedAmount >= amount ? 'Payment marked as paid!' : 'Partial payment recorded!');
+      toast.success(newStatus === 'paid' ? 'Payment marked as paid!' : 'Partial payment recorded!');
+      
+      setShowPaymentModal(false);
+      setSelectedPayment(null);
+      setPaymentAmount('');
       fetchPendingPayments();
     } catch (error) {
       console.error('Error updating payment:', error);
@@ -303,7 +323,7 @@ export default function PendingPayments() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           {(paymentStatus === 'pending' || paymentStatus === 'due_soon' || paymentStatus === 'overdue' || paymentStatus === 'partial') && (
                             <button
-                              onClick={() => handleMarkAsPaid(payment.id, remainingAmount)}
+                              onClick={() => handleMarkAsPaid(payment)}
                               disabled={processing}
                               className="text-green-600 hover:text-green-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-green-50 rounded flex items-center space-x-1"
                               title="Mark as Paid"
@@ -311,6 +331,11 @@ export default function PendingPayments() {
                               <CheckCircle className="h-5 w-5" />
                               <span className="hidden sm:inline">Mark Paid</span>
                             </button>
+                          )}
+                          {paymentStatus === 'paid' && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              Paid
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -331,6 +356,83 @@ export default function PendingPayments() {
               setStatusFilter('all');
             }}
           />
+        )}
+
+        {/* Payment Modal */}
+        {showPaymentModal && selectedPayment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold">Record Payment</h3>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedPayment(null);
+                    setPaymentAmount('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Customer: <span className="font-medium">{selectedPayment.customerName}</span>
+                </p>
+                <p className="text-sm text-gray-600 mb-2">
+                  Total Amount: <span className="font-medium">{formatCurrency(selectedPayment.totalAmount)}</span>
+                </p>
+                <p className="text-sm text-gray-600 mb-2">
+                  Already Paid: <span className="font-medium">{formatCurrency(selectedPayment.paidAmount)}</span>
+                </p>
+                <p className="text-sm text-gray-600 mb-4">
+                  Pending Amount: <span className="font-medium text-red-600">{formatCurrency(selectedPayment.pendingAmount)}</span>
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount Received *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={selectedPayment.pendingAmount}
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter amount received"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Maximum: {formatCurrency(selectedPayment.pendingAmount)}
+                </p>
+              </div>
+
+              <div className="flex space-x-4">
+                <button
+                  onClick={processPayment}
+                  disabled={processing || !paymentAmount || parseNumber(paymentAmount) <= 0}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  <span>{processing ? 'Processing...' : 'Record Payment'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedPayment(null);
+                    setPaymentAmount('');
+                  }}
+                  disabled={processing}
+                  className="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -38,6 +38,20 @@ export default function StatsCard({
     emerald: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-emerald-200'
   };
 
+  // Format value to ensure no duplicate currency symbols
+  const formatValue = (val: string | number): string => {
+    if (typeof val === 'string') {
+      // If it's already a formatted currency string, return as is
+      if (val.includes('₹')) {
+        return val;
+      }
+      // If it's a plain number string, return as is
+      return val;
+    }
+    // If it's a number, return as is
+    return val.toString();
+  };
+
   return (
     <div
       className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 ${
@@ -48,7 +62,7 @@ export default function StatsCard({
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium text-gray-600 mb-2 uppercase tracking-wide">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 mb-1">{value}</p>
+          <p className="text-3xl font-bold text-gray-900 mb-1">{formatValue(value)}</p>
           {subtitle && (
             <p className="text-sm text-gray-500 font-medium">{subtitle}</p>
           )}

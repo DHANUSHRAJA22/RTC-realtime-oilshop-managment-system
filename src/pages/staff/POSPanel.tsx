@@ -5,7 +5,7 @@ import { ShoppingCart, Calculator, CreditCard, Smartphone, Banknote, User, Phone
 import { db } from '../../lib/firebase';
 import { Product, Sale, CustomerCredit, CreditTransaction, PendingPayment } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatAmount, parseNumber } from '../../utils/formatters';
+import { formatAmount, parseNumber, parseInteger, isValidInteger } from '../../utils/formatters';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
 import EmptyState from '../../components/UI/EmptyState';
 import toast from 'react-hot-toast';
@@ -32,7 +32,7 @@ export default function POSPanel() {
   
   const watchedValues = watch();
   const totalAmount = selectedProduct && watchedValues.quantity 
-    ? selectedProduct.basePrice * watchedValues.quantity 
+    ? selectedProduct.basePrice * parseInteger(watchedValues.quantity)
     : 0;
 
   useEffect(() => {
@@ -63,18 +63,26 @@ export default function POSPanel() {
 
   const validateStock = (quantity: number) => {
     if (!selectedProduct) return false;
-    return quantity <= selectedProduct.stock;
+    const intQuantity = parseInteger(quantity);
+    return intQuantity <= selectedProduct.stock && intQuantity >= 1;
   };
 
   const onSubmit = async (data: SaleFormData) => {
     if (!selectedProduct || !userProfile) return;
     
-    if (!validateStock(data.quantity)) {
-      toast.error('Insufficient stock available');
+    const intQuantity = parseInteger(data.quantity);
+    
+    if (!isValidInteger(intQuantity)) {
+      toast.error('Quantity must be a whole number (integer) greater than 0');
+      return;
+    }
+    
+    if (!validateStock(intQuantity)) {
+      toast.error('Insufficient stock available or invalid quantity');
       return;
     }
 
-    const calculatedTotal = selectedProduct.basePrice * data.quantity;
+    const calculatedTotal = selectedProduct.basePrice * intQuantity;
     let paidAmount = calculatedTotal;
     let creditAmount = 0;
 
@@ -89,6 +97,7 @@ export default function POSPanel() {
 
     const saleInfo = {
       ...data,
+      quantity: intQuantity,
       productName: selectedProduct.name,
       unitPrice: selectedProduct.basePrice,
       unit: selectedProduct.unit,
@@ -113,7 +122,7 @@ export default function POSPanel() {
         productName: selectedProduct.name,
         customerName: saleData.customerName,
         customerPhone: saleData.customerPhone,
-        quantity: parseNumber(saleData.quantity),
+        quantity: parseInteger(saleData.quantity),
         unit: selectedProduct.unit,
         unitPrice: parseNumber(selectedProduct.basePrice),
         totalAmount: parseNumber(saleData.totalAmount),
@@ -128,7 +137,7 @@ export default function POSPanel() {
       const saleDocRef = await addDoc(collection(db, 'sales'), saleRecord);
 
       // Update product stock
-      const newStock = selectedProduct.stock - parseNumber(saleData.quantity);
+      const newStock = selectedProduct.stock - parseInteger(saleData.quantity);
       await updateDoc(doc(db, 'products', selectedProduct.id), {
         stock: newStock,
         updatedAt: Timestamp.now()
@@ -178,6 +187,7 @@ export default function POSPanel() {
         staffId: userProfile.id,
         staffName: userProfile.profile.name,
         status: 'pending',
+        dueDate: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days from now
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       };
@@ -356,23 +366,31 @@ export default function POSPanel() {
               {/* Quantity */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Quantity ({selectedProduct?.unit || 'Unit'}) *
+                  Quantity ({selectedProduct?.unit || 'Unit'}) - Whole Numbers Only *
                 </label>
                 <input
                   {...register('quantity', { 
                     required: 'Quantity is required',
-                    min: { value: 0.1, message: 'Quantity must be greater than 0' },
-                    validate: validateStock
+                    min: { value: 1, message: 'Quantity must be at least 1' },
+                    validate: (value) => {
+                      const intValue = parseInteger(value);
+                      if (!Number.isInteger(intValue) || intValue < 1) {
+                        return 'Quantity must be a whole number (integer) greater than 0';
+                      }
+                      if (!validateStock(intValue)) {
+                        return 'Insufficient stock available';
+                      }
+                      return true;
+                    }
                   })}
                   type="number"
-                  step="0.1"
+                  min="1"
+                  step="1"
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
-                  placeholder="Enter quantity"
+                  placeholder="Enter quantity (whole numbers only)"
                 />
                 {errors.quantity && <p className="text-red-500 text-sm mt-2">{errors.quantity.message}</p>}
-                {!validateStock(watchedValues.quantity || 0) && watchedValues.quantity > 0 && (
-                  <p className="text-red-500 text-sm mt-2">Insufficient stock available</p>
-                )}
+                <p className="text-xs text-gray-500 mt-1">Note: Only whole numbers (integers) are allowed for quantity</p>
               </div>
 
               {/* Price Calculation */}
@@ -434,7 +452,7 @@ export default function POSPanel() {
               {(watchedValues.paymentMethod === 'CASH' || watchedValues.paymentMethod === 'GPAY') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Amount Paid (₹)
+                    Amount Paid
                   </label>
                   <input
                     {...register('paidAmount', {

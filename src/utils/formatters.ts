@@ -11,7 +11,15 @@ export const parseNumber = (value: any, defaultValue: number = 0): number => {
 };
 
 /**
- * Formats currency with proper Indian formatting
+ * Safely parses an integer value with fallback
+ */
+export const parseInteger = (value: any, defaultValue: number = 0): number => {
+  const num = parseNumber(value, defaultValue);
+  return Math.floor(num);
+};
+
+/**
+ * Formats currency with proper Indian formatting (removes duplicate ₹ symbols)
  */
 export const formatCurrency = (amount: number | string): string => {
   const numAmount = parseNumber(amount);
@@ -24,10 +32,22 @@ export const formatCurrency = (amount: number | string): string => {
 };
 
 /**
- * Formats amount for display (alias for formatCurrency)
+ * Formats amount for display without currency symbol
  */
 export const formatAmount = (amount: number | string): string => {
-  return formatCurrency(amount);
+  const numAmount = parseNumber(amount);
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(numAmount);
+};
+
+/**
+ * Validates if a value is a valid integer
+ */
+export const isValidInteger = (value: any): boolean => {
+  const num = parseNumber(value);
+  return Number.isInteger(num) && num >= 1;
 };
 
 /**
