@@ -1,0 +1,426 @@
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs, doc, updateDoc, addDoc, query, orderBy, onSnapshot, Timestamp, getDoc } from 'firebase/firestore';
+import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Package, AlertCircle, Search, Filter, ShoppingBag, CreditCard } from 'lucide-react';
+import { db } from '../../lib/firebase';
+import { Order, CreditRequest, Product } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { format } from 'date-fns';
+import { parseNumber, formatCurrency } from '../../utils/formatters';
+import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import EmptyState from '../../components/UI/EmptyState';
+import StatusBadge from '../../components/UI/StatusBadge';
+import StatsCard from '../../components/UI/StatsCard';
+import toast from 'react-hot-toast';
+
+export default function OrdersManagement() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [creditRequests, setCreditRequests] = useState<CreditRequest[]>([]);
+  const [filteredData, setFilteredData] = useState<(Order | CreditRequest)[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [processing, setProcessing] = useState(false);
+  const { userProfile } = useAuth();
+
+  useEffect(() => {
+    // Set up real-time listeners
+    const ordersQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    const creditRequestsQuery = query(collection(db, 'creditRequests'), orderBy('createdAt', 'desc'));
+
+    const unsubscribeOrders = onSnapshot(ordersQuery, (querySnapshot) => {
+      const ordersData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Order[];
+      setOrders(ordersData);
+    });
+
+    const unsubscribeCreditRequests = onSnapshot(creditRequestsQuery, (querySnapshot) => {
+      const requestsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CreditRequest[];
+      setCreditRequests(requestsData);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeOrders();
+      unsubscribeCreditRequests();
+    };
+  }, []);
+
+  useEffect(() => {
+    filterData();
+  }, [orders, creditRequests, searchTerm, statusFilter, typeFilter]);
+
+  const filterData = () => {
+    let combined: (Order | CreditRequest)[] = [];
+
+    if (typeFilter === 'all' || typeFilter === 'orders') {
+      combined = [...combined, ...orders];
+    }
+
+    if (typeFilter === 'all' || typeFilter === 'credit_requests') {
+      combined = [...combined, ...creditRequests];
+    }
+
+    if (searchTerm) {
+      combined = combined.filter(item =>
+        item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.customerPhone.includes(searchTerm) ||
+        ('items' in item && item.items.some(orderItem => 
+          orderItem.name.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
+      );
+    }
+
+    if (statusFilter !== 'all') {
+      combined = combined.filter(item => item.status === statusFilter);
+    }
+
+    // Sort by creation date
+    combined.sort((a, b) => b.createdAt.toDate().getTime() - a.createdAt.toDate().getTime());
+
+    setFilteredData(combined);
+  };
+
+  const isOrder = (item: Order | CreditRequest): item is Order => {
+    return 'items' in item && 'total' in item;
+  };
+
+  const isCreditRequest = (item: Order | CreditRequest): item is CreditRequest => {
+    return 'requestedAmount' in item;
+  };
+
+  const handleApproveCreditRequest = async (requestId: string, request: CreditRequest) => {
+    if (!userProfile) return;
+
+    setProcessing(true);
+    try {
+      // 1. Mark credit request as approved
+      await updateDoc(doc(db, 'creditRequests', requestId), {
+        status: 'approved',
+        approvedBy: userProfile.id,
+        approvedAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      // 2. Create an order
+      const orderData: Omit<Order, 'id'> = {
+        customerId: request.customerId,
+        customerName: request.customerName,
+        customerPhone: request.customerPhone,
+        items: [], // Will be populated from request details
+        total: parseNumber(request.requestedAmount),
+        status: 'confirmed',
+        paymentMethod: 'credit',
+        deliverySlot: 'TBD',
+        deliveryAddress: '',
+        notes: `Credit order from approved request: ${request.reason}`,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      };
+
+      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+
+      // 3. Create pending payment record
+      await addDoc(collection(db, 'pendingPayments'), {
+        orderId: orderRef.id,
+        customerId: request.customerId,
+        customerName: request.customerName,
+        customerPhone: request.customerPhone,
+        totalAmount: parseNumber(request.requestedAmount),
+        paidAmount: 0,
+        pendingAmount: parseNumber(request.requestedAmount),
+        paymentMethod: 'credit',
+        staffId: userProfile.id,
+        staffName: userProfile.profile.name,
+        status: 'pending',
+        dueDate: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days from now
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      toast.success('Credit request approved and order created successfully!');
+    } catch (error) {
+      console.error('Error approving credit request:', error);
+      toast.error('Failed to approve credit request');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleRejectCreditRequest = async (requestId: string, reason: string) => {
+    if (!userProfile || !reason.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      await updateDoc(doc(db, 'creditRequests', requestId), {
+        status: 'rejected',
+        approvedBy: userProfile.id,
+        rejectionReason: reason,
+        approvedAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      toast.success('Credit request rejected');
+    } catch (error) {
+      console.error('Error rejecting credit request:', error);
+      toast.error('Failed to reject credit request');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Calculate statistics
+  const stats = {
+    totalOrders: orders.length,
+    pendingCreditRequests: creditRequests.filter(r => r.status === 'pending').length,
+    creditOrders: orders.filter(o => o.paymentMethod === 'credit').length,
+    processingOrders: orders.filter(o => o.status === 'processing').length,
+    totalRevenue: orders.reduce((sum, order) => sum + parseNumber(order.total), 0),
+    pendingCreditAmount: creditRequests
+      .filter(r => r.status === 'pending')
+      .reduce((sum, request) => sum + parseNumber(request.requestedAmount), 0)
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <LoadingSpinner size="xl" text="Loading orders and credit requests..." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-3 rounded-xl shadow-lg mr-4">
+              <ClipboardList className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Orders & Credit Management</h1>
+              <p className="text-gray-600 mt-1">Manage all orders and credit requests in one place</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+          <StatsCard
+            title="Total Orders"
+            value={stats.totalOrders}
+            icon={ShoppingBag}
+            color="blue"
+          />
+          <StatsCard
+            title="Pending Requests"
+            value={stats.pendingCreditRequests}
+            icon={Clock}
+            color="yellow"
+          />
+          <StatsCard
+            title="Credit Orders"
+            value={stats.creditOrders}
+            icon={CreditCard}
+            color="green"
+          />
+          <StatsCard
+            title="Processing"
+            value={stats.processingOrders}
+            icon={Package}
+            color="purple"
+          />
+          <StatsCard
+            title="Total Revenue"
+            value={formatCurrency(stats.totalRevenue)}
+            icon={CheckCircle}
+            color="emerald"
+          />
+          <StatsCard
+            title="Pending Credit"
+            value={formatCurrency(stats.pendingCreditAmount)}
+            icon={AlertCircle}
+            color="red"
+          />
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search customer, phone, or product..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="all">All Types</option>
+              <option value="orders">Orders Only</option>
+              <option value="credit_requests">Credit Requests Only</option>
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="approved">Approved</option>
+              <option value="processing">Processing</option>
+              <option value="delivered">Delivered</option>
+              <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+
+            <div className="flex items-center text-gray-600 font-medium">
+              <Filter className="h-5 w-5 mr-2" />
+              <span>{filteredData.length} Records</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Orders & Credit Requests Table */}
+        {filteredData.length > 0 ? (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Customer
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Details
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredData.map((item, index) => (
+                    <tr key={item.id} className={`hover:bg-gray-50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                          isOrder(item) ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-orange-100 text-orange-800 border border-orange-200'
+                        }`}>
+                          {isOrder(item) ? 'Order' : 'Credit Request'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="bg-gray-100 p-2 rounded-full mr-3">
+                            <User className="h-5 w-5 text-gray-600" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">{item.customerName}</div>
+                            <div className="text-sm text-gray-500 flex items-center">
+                              <Phone className="h-3 w-3 mr-1" />
+                              {item.customerPhone}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {isOrder(item) ? (
+                          <div>
+                            <p className="font-semibold">{item.items.length} items</p>
+                            <p className="text-gray-500 text-xs">{item.paymentMethod}</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="font-semibold truncate max-w-xs" title={item.reason}>{item.reason}</p>
+                            <p className="text-gray-500 text-xs">Credit Request</p>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                        {formatCurrency(isOrder(item) ? item.total : item.requestedAmount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {format(item.createdAt.toDate(), 'MMM dd, yyyy')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <StatusBadge status={item.status} size="sm" />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        {isCreditRequest(item) && item.status === 'pending' && (
+                          <div className="flex space-x-3">
+                            <button
+                              onClick={() => handleApproveCreditRequest(item.id, item)}
+                              disabled={processing}
+                              className="text-green-600 hover:text-green-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-green-50 rounded"
+                              title="Approve & Create Order"
+                            >
+                              <CheckCircle className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const reason = prompt('Please provide a rejection reason:');
+                                if (reason) {
+                                  handleRejectCreditRequest(item.id, reason);
+                                }
+                              }}
+                              disabled={processing}
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-red-50 rounded"
+                              title="Reject Request"
+                            >
+                              <XCircle className="h-5 w-5" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            icon={ClipboardList}
+            title="No Records Found"
+            description="No orders or credit requests match your current filters. Try adjusting your search criteria."
+            actionLabel="Clear Filters"
+            onAction={() => {
+              setSearchTerm('');
+              setStatusFilter('all');
+              setTypeFilter('all');
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+    
+    function isStaff() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff';
+    }
+    
+    function isCustomer() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer';
+    }
+    
+    function isEmployee() {
+      return isOwner() || isStaff();
+    }
+    
+    function isOwnerOrResourceOwner(userId) {
+      return isOwner() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isOwnerOrResourceOwner(userId);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwnerOrResourceOwner(userId);
+      allow delete: if isOwner();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if true; // Public read access for browsing
+      allow create, update, delete: if isEmployee();
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      allow read: if isEmployee() || (isCustomer() && resource.data.customerId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update: if isEmployee() || (isCustomer() && resource.data.customerId == request.auth.uid && resource.data.status == 'pending');
+      allow delete: if isOwner();
+    }
+
+    // Sales collection
+    match /sales/{saleId} {
+      allow read, create, update: if isEmployee();
+      allow delete: if isOwner();
+    }
+
+    // Bills collection
+    match /bills/{billId} {
+      allow read, create, update: if isEmployee();
+      allow delete: if isOwner();
+    }
+
+    // Credit Requests collection
+    match /creditRequests/{requestId} {
+      allow read: if isEmployee() || (isCustomer() && resource.data.customerId == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update: if isEmployee();
+      allow delete: if isOwner();
+    }
+
+    // Market Credits collection
+    match /marketCredits/{creditId} {
+      allow read: if isEmployee() || (isCustomer() && resource.data.customerId == request.auth.uid);
+      allow create, update: if isEmployee();
+      allow delete: if isOwner();
+    }
+
+    // Pending Payments collection
+    match /pendingPayments/{paymentId} {
+      allow read: if isEmployee() || (isCustomer() && resource.data.customerId == request.auth.uid);
+      allow create, update: if isEmployee();
+      allow delete: if isOwner();
+    }
+
+    // Default deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

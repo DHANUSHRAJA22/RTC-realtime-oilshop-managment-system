@@ -1,0 +1,658 @@
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs, addDoc, query, orderBy, where, Timestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
+import { FileText, Printer, Download, Search, Plus, Eye, Calculator, ShoppingCart, CreditCard, Banknote } from 'lucide-react';
+import { db } from '../../lib/firebase';
+import { Product, Bill, BillItem } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { format } from 'date-fns';
+import { parseNumber, formatCurrency } from '../../utils/formatters';
+import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import EmptyState from '../../components/UI/EmptyState';
+import StatusBadge from '../../components/UI/StatusBadge';
+import toast from 'react-hot-toast';
+
+interface BillFormData {
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  paymentMethod: 'cash' | 'gpay' | 'credit' | 'upi';
+  discountAmount: number;
+  notes: string;
+}
+
+export default function BillingModule() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [billItems, setBillItems] = useState<BillItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewBill, setShowNewBill] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const { userProfile } = useAuth();
+  const navigate = useNavigate();
+
+  const { register, handleSubmit, reset, formState: { errors }, watch } = useForm<BillFormData>();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      // Fetch products
+      const productsSnapshot = await getDocs(collection(db, 'products'));
+      const productsData = productsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Product[];
+      setProducts(productsData);
+
+      // Fetch bills
+      const billsQuery = query(collection(db, 'bills'), orderBy('createdAt', 'desc'));
+      const billsSnapshot = await getDocs(billsQuery);
+      const billsData = billsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          subtotal: parseNumber(data.subtotal),
+          taxAmount: parseNumber(data.taxAmount),
+          discountAmount: parseNumber(data.discountAmount),
+          totalAmount: parseNumber(data.totalAmount)
+        };
+      }) as Bill[];
+      setBills(billsData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Failed to fetch data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addBillItem = (productId: string, quantity: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    if (product.stock < quantity) {
+      toast.error(`Insufficient stock. Available: ${product.stock} ${product.unit}`);
+      return;
+    }
+
+    const existingItem = billItems.find(item => item.productId === productId);
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + quantity;
+      if (product.stock < newQuantity) {
+        toast.error(`Insufficient stock. Available: ${product.stock} ${product.unit}`);
+        return;
+      }
+      setBillItems(prev => prev.map(item =>
+        item.productId === productId
+          ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.unitPrice }
+          : item
+      ));
+    } else {
+      const newItem: BillItem = {
+        productId: product.id,
+        productName: product.name,
+        quantity,
+        unit: product.unit,
+        unitPrice: product.basePrice,
+        totalPrice: quantity * product.basePrice
+      };
+      setBillItems(prev => [...prev, newItem]);
+    }
+  };
+
+  const removeBillItem = (productId: string) => {
+    setBillItems(prev => prev.filter(item => item.productId !== productId));
+  };
+
+  const updateBillItemQuantity = (productId: string, quantity: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    if (quantity > product.stock) {
+      toast.error(`Insufficient stock. Available: ${product.stock} ${product.unit}`);
+      return;
+    }
+
+    setBillItems(prev => prev.map(item =>
+      item.productId === productId
+        ? { ...item, quantity, totalPrice: quantity * item.unitPrice }
+        : item
+    ));
+  };
+
+  const calculateTotals = () => {
+    const subtotal = billItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const taxAmount = subtotal * 0.18; // 18% GST
+    return { subtotal, taxAmount };
+  };
+
+  const onSubmit = async (data: BillFormData) => {
+    if (!userProfile || billItems.length === 0) {
+      toast.error('Please add items to the bill');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const { subtotal, taxAmount } = calculateTotals();
+      const discountAmount = parseNumber(data.discountAmount);
+      const totalAmount = subtotal + taxAmount - discountAmount;
+
+      const billData: Omit<Bill, 'id'> = {
+        billNumber: `BILL-${Date.now()}`,
+        customerId: '',
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerAddress: data.customerAddress,
+        items: billItems,
+        subtotal: parseNumber(subtotal),
+        taxAmount: parseNumber(taxAmount),
+        discountAmount: parseNumber(discountAmount),
+        totalAmount: parseNumber(totalAmount),
+        paymentMethod: data.paymentMethod,
+        paymentStatus: data.paymentMethod === 'credit' ? 'pending' : 'paid',
+        staffId: userProfile.id,
+        staffName: userProfile.profile.name,
+        notes: data.notes,
+        createdAt: Timestamp.now()
+      };
+
+      // Create the bill
+      const billRef = await addDoc(collection(db, 'bills'), billData);
+
+      // Update product stock for each item
+      for (const item of billItems) {
+        const productRef = doc(db, 'products', item.productId);
+        const productDoc = await getDoc(productRef);
+        
+        if (productDoc.exists()) {
+          const productData = productDoc.data() as Product;
+          const newStock = Math.max(0, productData.stock - item.quantity);
+          
+          await updateDoc(productRef, {
+            stock: newStock,
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+
+      // If payment method is credit, create a pending payment record
+      if (data.paymentMethod === 'credit') {
+        await addDoc(collection(db, 'pendingPayments'), {
+          billId: billRef.id,
+          billNumber: billData.billNumber,
+          customerId: billData.customerId,
+          customerName: billData.customerName,
+          customerPhone: billData.customerPhone,
+          amount: totalAmount,
+          dueDate: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days from now
+          status: 'pending',
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        });
+      }
+
+      toast.success('Bill created successfully!');
+      
+      reset();
+      setBillItems([]);
+      setDiscountAmount(0);
+      setShowNewBill(false);
+      fetchData();
+    } catch (error) {
+      console.error('Error creating bill:', error);
+      toast.error('Failed to create bill');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const exportToExcel = () => {
+    const headers = ['Bill Number', 'Customer', 'Date', 'Total Amount', 'Payment Method', 'Status'];
+    const csvData = bills.map(bill => [
+      bill.billNumber,
+      bill.customerName,
+      format(bill.createdAt.toDate(), 'yyyy-MM-dd'),
+      formatCurrency(bill.totalAmount),
+      bill.paymentMethod.toUpperCase(),
+      bill.paymentStatus.toUpperCase()
+    ]);
+
+    const csvContent = [headers, ...csvData]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bills-export-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleViewBill = (billId: string) => {
+    navigate(`/bills/${billId}`);
+  };
+
+  const handlePrintBill = (billId: string) => {
+    navigate(`/bills/${billId}/print`);
+  };
+
+  const filteredBills = bills.filter(bill =>
+    bill.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    bill.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    bill.customerPhone.includes(searchTerm)
+  );
+
+  const getTotalAmount = () => {
+    const { subtotal, taxAmount } = calculateTotals();
+    return subtotal + taxAmount - discountAmount;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <LoadingSpinner size="xl" text="Loading billing data..." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 space-y-4 sm:space-y-0">
+          <div className="flex items-center">
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-3 rounded-xl shadow-lg mr-4">
+              <FileText className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Billing Module</h1>
+              <p className="text-gray-600 mt-1">Create and manage customer bills</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+            <button
+              onClick={() => setShowNewBill(true)}
+              className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <Plus className="h-5 w-5" />
+              <span>New Bill</span>
+            </button>
+            <button
+              onClick={exportToExcel}
+              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-3 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+            >
+              <Download className="h-4 w-4" />
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+
+        {!showNewBill ? (
+          <>
+            {/* Search and Filters */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 mb-6">
+              <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                <div className="relative flex-1 w-full">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by customer name, phone, or bill number..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 text-gray-600 font-medium">
+                  <FileText className="h-5 w-5" />
+                  <span>{filteredBills.length} Bills</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bills Table */}
+            {filteredBills.length > 0 ? (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Bill Number
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Customer
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Payment
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {filteredBills.map((bill, index) => (
+                        <tr key={bill.id} className={`hover:bg-gray-50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {bill.billNumber}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{bill.customerName}</div>
+                            <div className="text-sm text-gray-500">{bill.customerPhone}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {format(bill.createdAt.toDate(), 'MMM dd, yyyy HH:mm')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {formatCurrency(bill.totalAmount)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              {bill.paymentMethod === 'cash' && <Banknote className="h-4 w-4 text-green-600" />}
+                              {bill.paymentMethod === 'credit' && <CreditCard className="h-4 w-4 text-red-600" />}
+                              {(bill.paymentMethod === 'gpay' || bill.paymentMethod === 'upi') && <ShoppingCart className="h-4 w-4 text-blue-600" />}
+                              <span className="text-sm font-medium capitalize">{bill.paymentMethod}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <StatusBadge status={bill.paymentStatus} size="sm" />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex space-x-3">
+                              <button
+                                onClick={() => handleViewBill(bill.id)}
+                                className="text-amber-600 hover:text-amber-800 transition-colors duration-200"
+                                title="View Details"
+                              >
+                                <Eye className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => handlePrintBill(bill.id)}
+                                className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+                                title="Print Bill"
+                              >
+                                <Printer className="h-5 w-5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                icon={FileText}
+                title="No Bills Found"
+                description="No bills match your search criteria. Try adjusting your search terms or create a new bill."
+                actionLabel="Create New Bill"
+                onAction={() => setShowNewBill(true)}
+              />
+            )}
+          </>
+        ) : (
+          /* New Bill Form */
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900">Create New Bill</h2>
+              <button
+                onClick={() => {
+                  setShowNewBill(false);
+                  setBillItems([]);
+                  setDiscountAmount(0);
+                  reset();
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors duration-200 p-2 hover:bg-gray-100 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+              {/* Customer Information */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Customer Name *
+                    </label>
+                    <input
+                      {...register('customerName', { required: 'Customer name is required' })}
+                      type="text"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                      placeholder="Enter customer name"
+                    />
+                    {errors.customerName && <p className="text-red-500 text-sm mt-1">{errors.customerName.message}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number *
+                    </label>
+                    <input
+                      {...register('customerPhone', { required: 'Phone number is required' })}
+                      type="tel"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                      placeholder="Enter phone number"
+                    />
+                    {errors.customerPhone && <p className="text-red-500 text-sm mt-1">{errors.customerPhone.message}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Payment Method *
+                    </label>
+                    <select
+                      {...register('paymentMethod', { required: 'Payment method is required' })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="">Select Payment Method</option>
+                      <option value="cash">Cash</option>
+                      <option value="gpay">GPay</option>
+                      <option value="upi">UPI</option>
+                      <option value="credit">Credit</option>
+                    </select>
+                    {errors.paymentMethod && <p className="text-red-500 text-sm mt-1">{errors.paymentMethod.message}</p>}
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Customer Address
+                  </label>
+                  <textarea
+                    {...register('customerAddress')}
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Enter customer address (optional)"
+                  />
+                </div>
+              </div>
+
+              {/* Add Products */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Products</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <select
+                    id="product-select"
+                    className="border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                  >
+                    <option value="">Select Product</option>
+                    {products.filter(p => p.stock > 0).map(product => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} - {formatCurrency(product.basePrice)}/{product.unit} (Stock: {product.stock})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="Quantity"
+                    id="quantity-input"
+                    className="border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const productSelect = document.getElementById('product-select') as HTMLSelectElement;
+                      const quantityInput = document.getElementById('quantity-input') as HTMLInputElement;
+                      if (productSelect.value && quantityInput.value) {
+                        addBillItem(productSelect.value, parseFloat(quantityInput.value));
+                        productSelect.value = '';
+                        quantityInput.value = '';
+                      }
+                    }}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  >
+                    Add Item
+                  </button>
+                </div>
+
+                {/* Bill Items */}
+                {billItems.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Product</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quantity</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Unit Price</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
+                          <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {billItems.map((item, index) => (
+                          <tr key={item.productId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-25'}>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.productName}</td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0.1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateBillItemQuantity(item.productId, parseFloat(e.target.value) || 0)}
+                                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                />
+                                <span className="text-gray-500">{item.unit}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900 font-medium">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gray-900">{formatCurrency(item.totalPrice)}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <button
+                                type="button"
+                                onClick={() => removeBillItem(item.productId)}
+                                className="text-red-600 hover:text-red-800 font-medium transition-colors duration-200"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Totals */}
+              {billItems.length > 0 && (
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <div className="flex justify-end">
+                    <div className="w-80 space-y-4">
+                      <div className="flex justify-between text-lg">
+                        <span className="font-medium">Subtotal:</span>
+                        <span className="font-semibold">{formatCurrency(calculateTotals().subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg">
+                        <span className="font-medium">Tax (18%):</span>
+                        <span className="font-semibold">{formatCurrency(calculateTotals().taxAmount)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="font-medium">Discount:</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-500">₹</span>
+                          <input
+                            {...register('discountAmount')}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={discountAmount}
+                            onChange={(e) => setDiscountAmount(parseNumber(e.target.value))}
+                            className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-right focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-between font-bold text-xl border-t border-gray-300 pt-4">
+                        <span>Total:</span>
+                        <span className="text-amber-600">{formatCurrency(getTotalAmount())}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  {...register('notes')}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Add any additional notes (optional)"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 pt-6 border-t border-gray-200">
+                <button
+                  type="submit"
+                  disabled={processing || billItems.length === 0}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-3 rounded-lg font-medium hover:from-amber-600 hover:to-amber-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  <Calculator className="h-5 w-5" />
+                  <span>{processing ? 'Creating Bill...' : 'Create Bill'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewBill(false);
+                    setBillItems([]);
+                    setDiscountAmount(0);
+                    reset();
+                  }}
+                  className="bg-gray-500 text-white px-8 py-3 rounded-lg font-medium hover:bg-gray-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
