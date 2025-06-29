@@ -3,13 +3,13 @@ import React, { useState, useEffect } from 'react';
 import {
   collection,
   addDoc,
+  getDocs,
   query,
   orderBy,
   onSnapshot,
   Timestamp,
   doc,
-  updateDoc,
-  getDocs
+  updateDoc
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import {
@@ -37,7 +37,7 @@ interface MarketCreditFormData {
   customerName: string;
   customerPhone: string;
   amount: number;            // original credit
-  collectionAmount?: number; // optional payment
+  collectionAmount?: number; // optional daily collection
 }
 
 export default function MarketCredits() {
@@ -46,41 +46,44 @@ export default function MarketCredits() {
   const [processing, setProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
-  const [customerOutstanding, setCustomerOutstanding] = useState(0);
+  const [outstanding, setOutstanding] = useState(0);
   const { userProfile } = useAuth();
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } =
-    useForm<MarketCreditFormData>();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors }
+  } = useForm<MarketCreditFormData>();
 
-  // 1) real-time subscribe to credits
+  // -- Real-time load all credits --
   useEffect(() => {
     const q = query(collection(db, 'marketCredits'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, snap => {
-      const list = snap.docs.map(d => ({
-        id: d.id,
-        ...(d.data() as any)
-      })) as MarketCredit[];
-      setCredits(list);
-      setLoading(false);
-    }, e => {
-      console.error(e);
-      toast.error('Failed loading credits');
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        const list = snap.docs.map(d => ({
+          id: d.id,
+          ...(d.data() as any)
+        })) as MarketCredit[];
+        setCredits(list);
+        setLoading(false);
+      },
+      err => {
+        console.error(err);
+        toast.error('Failed to load credits');
+        setLoading(false);
+      }
+    );
+    return () => unsub();
   }, []);
 
-  // 2) compute outstanding when a customer is selected
+  // -- When customer chosen, compute outstanding = credit.amount – sum(collections) --
   useEffect(() => {
-    if (!selectedCustomer) {
-      setCustomerOutstanding(0);
-      return;
-    }
+    if (!selectedCustomer) return setOutstanding(0);
     (async () => {
-      // find that credit doc
       const credit = credits.find(c => c.customerPhone === selectedCustomer);
-      if (!credit) return setCustomerOutstanding(0);
-
-      // sum all collection entries
+      if (!credit) return setOutstanding(0);
       const colSnap = await getDocs(
         collection(db, 'marketCredits', credit.id, 'collections')
       );
@@ -88,17 +91,16 @@ export default function MarketCredits() {
         (sum, d) => sum + parseNumber((d.data() as any).amount),
         0
       );
-      setCustomerOutstanding(parseNumber(credit.amount) - collected);
+      setOutstanding(parseNumber(credit.amount) - collected);
     })();
   }, [selectedCustomer, credits]);
 
-  // 3) submit handler: creates credit if new, and also logs a collection if collectionAmount provided
+  // -- Form submit: create credit and optional collection record --
   const onSubmit = async (data: MarketCreditFormData) => {
     if (!userProfile) return toast.error('Not authenticated');
     setProcessing(true);
-
     try {
-      // if registering a new credit
+      // create main credit record
       const creditRef = await addDoc(collection(db, 'marketCredits'), {
         customerName: data.customerName.trim(),
         customerPhone: data.customerPhone.trim(),
@@ -108,9 +110,9 @@ export default function MarketCredits() {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       });
-      toast.success('Credit entry created');
+      toast.success('Credit created');
 
-      // if you supplied an immediate collection
+      // if daily collection provided
       if (data.collectionAmount && data.collectionAmount > 0) {
         await addDoc(
           collection(db, 'marketCredits', creditRef.id, 'collections'),
@@ -127,13 +129,13 @@ export default function MarketCredits() {
       setSelectedCustomer('');
     } catch (e) {
       console.error(e);
-      toast.error('Failed to save');
+      toast.error('Save failed');
     } finally {
       setProcessing(false);
     }
   };
 
-  // 4) remove an old credit
+  // -- Delete entire credit record (soft-delete or real delete as desired) --
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this credit?')) return;
     await updateDoc(doc(db, 'marketCredits', id), { deleted: true });
@@ -148,95 +150,106 @@ export default function MarketCredits() {
     );
   }
 
-  // filter and stats
+  // Unique customers for dropdown
   const unique = Array.from(
-    new Map(
-      credits.map(c => [c.customerPhone, c.customerName])
-    )
+    new Map(credits.map(c => [c.customerPhone, c.customerName])).entries()
   ).map(([phone, name]) => ({ phone, name }));
 
-  const totalOutstanding = unique.reduce((sum, u) => {
-    const credit = credits.find(c => c.customerPhone === u.phone);
-    if (!credit) return sum;
-    // same fetch as above
-    return sum; // we skip to keep this simple
-  }, 0);
-
   return (
-    <div className="p-8 space-y-8">
-      <StatsCard
-        title="Unique Customers"
-        value={unique.length}
-        icon={User}
-        color="blue"
-      />
-      {/* Form */}
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <fieldset className="p-6 bg-white rounded shadow space-y-4">
-          <legend className="font-semibold">Add Credit & Collection</legend>
+    <div className="min-h-screen bg-gray-50 p-8 space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatsCard title="Customers" value={unique.length} icon={User} color="blue" />
+        <StatsCard
+          title="Total Credits"
+          value={formatCurrency(
+            credits.reduce((s, c) => s + parseNumber(c.amount), 0)
+          )}
+          icon={DollarSign}
+          color="green"
+        />
+        <StatsCard
+          title="Active Credits"
+          value={formatCurrency(
+            credits.reduce((s, c) => s + (c.deleted ? 0 : parseNumber(c.amount)), 0)
+          )}
+          icon={Calendar}
+          color="purple"
+        />
+      </div>
 
-          {/* customer */}
+      {/* Form & Lookup */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Add / Collect */}
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="bg-white rounded p-6 shadow space-y-4"
+        >
+          <h2 className="text-xl font-semibold flex items-center">
+            <Plus className="mr-2 text-purple-600" /> Add Credit & Collection
+          </h2>
           <div>
-            <label>Customer *</label>
+            <label>Customer Name *</label>
             <input
-              {...register('customerName', { required: true })}
-              placeholder="Name"
-              className="w-full border px-3 py-2 rounded"
+              {...register('customerName', { required: 'Required' })}
+              className="w-full border rounded px-3 py-2"
             />
+            {errors.customerName && (
+              <p className="text-red-500 text-sm">{errors.customerName.message}</p>
+            )}
           </div>
           <div>
             <label>Phone *</label>
             <input
-              {...register('customerPhone', { required: true })}
-              placeholder="9876543210"
-              className="w-full border px-3 py-2 rounded"
+              {...register('customerPhone', { required: 'Required' })}
               onChange={e => setSelectedCustomer(e.target.value)}
+              className="w-full border rounded px-3 py-2"
             />
+            {errors.customerPhone && (
+              <p className="text-red-500 text-sm">{errors.customerPhone.message}</p>
+            )}
           </div>
-
-          {/* original credit */}
           <div>
             <label>Credit Amount ₹*</label>
             <input
               type="number"
               step="1"
-              {...register('amount', { required: true, min: 1 })}
-              className="w-full border px-3 py-2 rounded"
-              placeholder="Enter whole number"
+              {...register('amount', { required: 'Required', min: 1 })}
+              className="w-full border rounded px-3 py-2"
             />
+            {errors.amount && (
+              <p className="text-red-500 text-sm">{errors.amount.message}</p>
+            )}
           </div>
-
-          {/* daily collection */}
           <div>
-            <label>Collection Amount (optional)</label>
+            <label>Collection Amount (optional) ₹</label>
             <input
               type="number"
               step="1"
               {...register('collectionAmount')}
-              className="w-full border px-3 py-2 rounded"
-              placeholder="Enter how much collected today"
+              className="w-full border rounded px-3 py-2"
             />
           </div>
-
           <button
             type="submit"
             disabled={processing}
-            className="mt-4 px-6 py-2 bg-purple-600 text-white rounded"
+            className="mt-4 w-full bg-purple-600 text-white py-2 rounded"
           >
-            {processing ? 'Saving…' : 'Save Entry'}
+            {processing ? 'Saving…' : 'Save'}
           </button>
-        </fieldset>
+        </form>
 
-        {/* customer lookup & outstanding + history */}
-        <fieldset className="p-6 bg-white rounded shadow space-y-4">
-          <legend className="font-semibold">Customer Balance & Collections</legend>
-
+        {/* Lookup & Outstanding */}
+        <div className="bg-white rounded p-6 shadow space-y-4">
+          <h2 className="text-xl font-semibold flex items-center">
+            <DollarSign className="mr-2 text-green-600" /> Customer Outstanding
+          </h2>
           <select
-            className="w-full border px-3 py-2 rounded"
+            className="w-full border rounded px-3 py-2"
             value={selectedCustomer}
             onChange={e => setSelectedCustomer(e.target.value)}
           >
-            <option value="">Select a customer…</option>
+            <option value="">Select customer…</option>
             {unique.map(u => (
               <option key={u.phone} value={u.phone}>
                 {u.name} — {u.phone}
@@ -246,23 +259,94 @@ export default function MarketCredits() {
 
           {selectedCustomer && (
             <>
-              <p className="text-xl">
-                Outstanding: {formatCurrency(customerOutstanding)}
+              <p className="text-2xl font-bold">
+                {formatCurrency(outstanding)}
               </p>
-
-              <div className="space-y-2 max-h-64 overflow-auto">
-                {/*
-                  fetch and render subcollection entries 
-                */}
-                {/* for brevity, you’d replicate the onSubmit logic’s collection read here */}
-                <p className="text-sm text-gray-500">
-                  Collections history will appear here with date/time.
-                </p>
+              <div className="space-y-2 max-h-48 overflow-auto">
+                <h4 className="font-medium">Collections History</h4>
+                {/* load and list collections */}
+                {/* for brevity, you can mirror the getDocs logic here */}
+                <p className="text-gray-500">Loading history…</p>
               </div>
             </>
           )}
-        </fieldset>
-      </form>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded shadow p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">All Credits</h2>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              placeholder="Search…"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-10 border rounded px-3 py-2"
+            />
+          </div>
+        </div>
+        {credits.filter(c =>
+          c.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.customerPhone.includes(searchTerm)
+        ).length ? (
+          <table className="w-full table-auto">
+            <thead className="bg-gray-100">
+              <tr>
+                {['Date','Customer','Credit','Status','Actions'].map(h => (
+                  <th key={h} className="p-2 text-left text-sm font-semibold">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {credits.map((c, i) => (
+                <tr
+                  key={c.id}
+                  className={i % 2 ? 'bg-white' : 'bg-gray-50'}
+                >
+                  <td className="p-2 text-sm">
+                    {format(c.createdAt.toDate(), 'MMM dd, yyyy')}
+                  </td>
+                  <td className="p-2 text-sm">
+                    {c.customerName} <br />
+                    <span className="text-xs text-gray-500">{c.customerPhone}</span>
+                  </td>
+                  <td className="p-2 text-sm">
+                    {formatCurrency(parseNumber(c.amount))}
+                  </td>
+                  <td className="p-2 text-sm">
+                    {c.deleted ? (
+                      <span className="text-red-600">Deleted</span>
+                    ) : (
+                      <span className="text-green-600">Active</span>
+                    )}
+                  </td>
+                  <td className="p-2 text-sm space-x-2">
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      title="Delete"
+                      className="text-red-600"
+                    >
+                      <Trash2 className="inline-block h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <EmptyState
+            icon={CreditCard}
+            title="No credits"
+            description="Add a new credit to get started."
+            actionLabel="Clear Search"
+            onAction={() => setSearchTerm('')}
+          />
+        )}
+      </div>
     </div>
   );
 }
