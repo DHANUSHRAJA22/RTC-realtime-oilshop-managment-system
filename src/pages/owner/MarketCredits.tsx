@@ -1,41 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  Timestamp, 
-  doc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  onSnapshot,
+  Timestamp,
+  doc,
   updateDoc,
-  serverTimestamp 
+  serverTimestamp
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
-import { 
-  CreditCard, 
-  Plus, 
-  User, 
-  Phone, 
-  DollarSign, 
-  Calendar, 
-  Search, 
-  Edit, 
+import {
+  CreditCard,
+  Plus,
+  User,
+  Phone,
+  DollarSign,
+  Calendar,
+  Search,
+  Edit,
   CheckCircle,
   History,
   TrendingDown,
   X,
   RotateCcw
 } from 'lucide-react';
-import { db } from './firebase';
-import { MarketCredit, Collection, CustomerBalance } from './types';
-import { useAuth } from './contexts/AuthContext';
+
+import { db } from '../../lib/firebase';
+import { useAuth } from '../../contexts/AuthContext';
+import { parseNumber, formatCurrency } from '../../utils/formatters';
+
+import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import EmptyState     from '../../components/UI/EmptyState';
+import StatsCard      from '../../components/UI/StatsCard';
+
+import { MarketCredit, Collection, CustomerBalance } from '../../types';
 import { format } from 'date-fns';
-import { parseNumber, formatCurrency } from './utils/formatters';
-import LoadingSpinner from './components/UI/LoadingSpinner';
-import EmptyState from './components/UI/EmptyState';
-import StatsCard from './components/UI/StatsCard';
 import toast from 'react-hot-toast';
+
 
 interface MarketCreditFormData {
   customerName: string;
