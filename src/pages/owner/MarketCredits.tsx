@@ -35,9 +35,10 @@ import { MarketCredit, Collection, CustomerBalance } from './types';
 import { useAuth } from "../../contexts/AuthContext";
 import { format } from 'date-fns';
 import { parseNumber, formatCurrency } from "../../utils/formatters";
-import LoadingSpinner from './components/UI/LoadingSpinner';
-import EmptyState from './components/UI/EmptyState';
-import StatsCard from './components/UI/StatsCard';
+import LoadingSpinner from "../../components/UI/LoadingSpinner";
+import EmptyState     from "../../components/UI/EmptyState";
+import StatsCard      from "../../components/UI/StatsCard";
+
 import toast from 'react-hot-toast';
 
 interface MarketCreditFormData {
