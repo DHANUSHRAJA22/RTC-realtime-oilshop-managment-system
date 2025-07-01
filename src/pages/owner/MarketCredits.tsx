@@ -517,7 +517,7 @@ export default function MarketCredits() {
                     min: { value: 1, message: 'Amount must be at least ₹1' }
                   })}
                   type="number"
-                  min="1"
+                  min="0"
                   step="1"
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                   placeholder="Enter credit amount"
