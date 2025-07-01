@@ -514,7 +514,7 @@ export default function MarketCredits() {
                 <input
                   {...register('amount', { 
                     required: 'Amount is required',
-                    min: { value: 1, message: 'Amount must be at least ₹1' }
+                   
                   })}
                   type="number"
                   min="0"
