@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, addDoc, query, orderBy, onSnapshot, Timestamp, getDoc } from 'firebase/firestore';
-import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Package, AlertCircle, Search, Filter, ShoppingBag, CreditCard } from 'lucide-react';
+import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Package, AlertCircle, Search, Filter, ShoppingBag, CreditCard, Eye, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { Order, CreditRequest, Product } from '../../types';
+import { Order, CreditRequest, Product, OrderItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
 import { parseNumber, formatCurrency } from '../../utils/formatters';
@@ -21,6 +21,9 @@ export default function OrdersManagement() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [processing, setProcessing] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
   const { userProfile } = useAuth();
 
   useEffect(() => {
@@ -92,6 +95,22 @@ export default function OrdersManagement() {
 
   const isCreditRequest = (item: Order | CreditRequest): item is CreditRequest => {
     return 'requestedAmount' in item;
+  };
+
+  const handleViewOrderDetails = async (order: Order) => {
+    setSelectedOrder(order);
+    setLoadingItems(true);
+    
+    try {
+      // Order items are stored as an array in the order document
+      setOrderItems(order.items || []);
+    } catch (error) {
+      console.error('Error fetching order items:', error);
+      toast.error('Failed to fetch order details');
+      setOrderItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
   };
 
   const handleApproveCreditRequest = async (requestId: string, request: CreditRequest) => {
@@ -375,31 +394,42 @@ export default function OrdersManagement() {
                         <StatusBadge status={item.status} size="sm" />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {isCreditRequest(item) && item.status === 'pending' && (
-                          <div className="flex space-x-3">
+                        <div className="flex space-x-3">
+                          {isOrder(item) && (
                             <button
-                              onClick={() => handleApproveCreditRequest(item.id, item)}
-                              disabled={processing}
-                              className="text-green-600 hover:text-green-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-green-50 rounded"
-                              title="Approve & Create Order"
+                              onClick={() => handleViewOrderDetails(item)}
+                              className="text-blue-600 hover:text-blue-800 transition-colors duration-200 p-1 hover:bg-blue-50 rounded"
+                              title="View Order Details"
                             >
-                              <CheckCircle className="h-5 w-5" />
+                              <Eye className="h-5 w-5" />
                             </button>
-                            <button
-                              onClick={() => {
-                                const reason = prompt('Please provide a rejection reason:');
-                                if (reason) {
-                                  handleRejectCreditRequest(item.id, reason);
-                                }
-                              }}
-                              disabled={processing}
-                              className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-red-50 rounded"
-                              title="Reject Request"
-                            >
-                              <XCircle className="h-5 w-5" />
-                            </button>
-                          </div>
-                        )}
+                          )}
+                          {isCreditRequest(item) && item.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleApproveCreditRequest(item.id, item)}
+                                disabled={processing}
+                                className="text-green-600 hover:text-green-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-green-50 rounded"
+                                title="Approve & Create Order"
+                              >
+                                <CheckCircle className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = prompt('Please provide a rejection reason:');
+                                  if (reason) {
+                                    handleRejectCreditRequest(item.id, reason);
+                                  }
+                                }}
+                                disabled={processing}
+                                className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-red-50 rounded"
+                                title="Reject Request"
+                              >
+                                <XCircle className="h-5 w-5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -419,6 +449,134 @@ export default function OrdersManagement() {
               setTypeFilter('all');
             }}
           />
+        )}
+
+        {/* Order Details Modal */}
+        {selectedOrder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold">Order Details</h3>
+                <button
+                  onClick={() => {
+                    setSelectedOrder(null);
+                    setOrderItems([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Order Header */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Order ID</p>
+                    <p className="text-sm text-gray-900">#{selectedOrder.id.slice(-8).toUpperCase()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Status</p>
+                    <StatusBadge status={selectedOrder.status} size="sm" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Customer</p>
+                    <p className="text-sm text-gray-900">{selectedOrder.customerName}</p>
+                    <p className="text-xs text-gray-500">{selectedOrder.customerPhone}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Order Date</p>
+                    <p className="text-sm text-gray-900">
+                      {format(selectedOrder.createdAt.toDate(), 'MMM dd, yyyy HH:mm')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Payment Method</p>
+                    <p className="text-sm text-gray-900 capitalize">{selectedOrder.paymentMethod}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Delivery Slot</p>
+                    <p className="text-sm text-gray-900">{selectedOrder.deliverySlot}</p>
+                  </div>
+                </div>
+
+                {/* Order Items */}
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h4>
+                  {loadingItems ? (
+                    <div className="flex justify-center py-8">
+                      <LoadingSpinner text="Loading order items..." />
+                    </div>
+                  ) : orderItems.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Product
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Quantity
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Unit Price
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Total
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {orderItems.map((item, index) => (
+                            <tr key={index}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {item.name}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {item.quantity} {item.unit}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {formatCurrency(item.price)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {formatCurrency(item.price * item.quantity)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">No items found for this order</p>
+                  )}
+                </div>
+
+                {/* Order Total */}
+                <div className="border-t pt-4">
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <span>Total Amount:</span>
+                    <span>{formatCurrency(selectedOrder.total)}</span>
+                  </div>
+                </div>
+
+                {/* Delivery Information */}
+                {selectedOrder.deliveryAddress && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Delivery Address</p>
+                    <p className="text-sm text-gray-900">{selectedOrder.deliveryAddress}</p>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {selectedOrder.notes && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Notes</p>
+                    <p className="text-sm text-gray-900">{selectedOrder.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
