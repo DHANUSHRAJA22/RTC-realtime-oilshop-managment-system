@@ -27,7 +27,9 @@ import {
   X,
   RotateCcw
 } from 'lucide-react';
-import { db } from './firebase';
+
+import { db } from '../../lib/firebase';
+
 import { MarketCredit, Collection, CustomerBalance } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { format } from 'date-fns';
