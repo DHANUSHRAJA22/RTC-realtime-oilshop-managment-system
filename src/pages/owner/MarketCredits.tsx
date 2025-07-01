@@ -32,9 +32,9 @@ import {
 import { db } from '../../lib/firebase';
 
 import { MarketCredit, Collection, CustomerBalance } from './types';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from "../../contexts/AuthContext";
 import { format } from 'date-fns';
-import { parseNumber, formatCurrency } from './utils/formatters';
+import { parseNumber, formatCurrency } from "../../utils/formatters";
 import LoadingSpinner from './components/UI/LoadingSpinner';
 import EmptyState from './components/UI/EmptyState';
 import StatsCard from './components/UI/StatsCard';
