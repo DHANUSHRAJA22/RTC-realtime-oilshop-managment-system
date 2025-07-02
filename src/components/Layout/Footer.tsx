@@ -37,11 +37,11 @@ export default function Footer() {
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
                 <Phone className="h-5 w-5 text-amber-500" />
-                <span className="text-gray-300">+91 98765 43210</span>
+                <span className="text-gray-300">+91 94433 28042</span>
               </div>
               <div className="flex items-center space-x-3">
                 <Mail className="h-5 w-5 text-amber-500" />
-                <span className="text-gray-300">info@rajatradingco.com</span>
+                <span className="text-gray-300">rdhanush22raja@gmail.com</span>
               </div>
               <div className="flex items-start space-x-3">
                 <MapPin className="h-5 w-5 text-amber-500 mt-1" />
