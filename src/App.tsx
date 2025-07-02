@@ -48,6 +48,7 @@ export default function App() {
                 <Route path="/customer" element={<CustomerDashboard />} />
                 <Route path="/customer/cart" element={<CartPage />} />
                 <Route path="/customer/profile" element={<ProfileManagement />} />
+                <Route path="/orders" element={<OrderHistory />} />
                 <Route path="/customer/orders" element={<OrderHistory />} />
                 <Route path="/customer/credit" element={<CreditBalance />} />
                 

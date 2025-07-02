@@ -29,7 +29,7 @@ export default function Navbar() {
         { path: '/customer', label: 'Dashboard', icon: BarChart3 },
         { path: '/products', label: 'Products', icon: Package },
         { path: '/customer/cart', label: 'Cart', icon: ShoppingCart, badge: getTotalItems() },
-        { path: '/customer/orders', label: 'Orders', icon: FileText },
+        { path: '/orders', label: 'My Orders', icon: FileText },
         { path: '/customer/credit', label: 'Credit', icon: CreditCard },
         { path: '/customer/profile', label: 'Profile', icon: User }
       ];
