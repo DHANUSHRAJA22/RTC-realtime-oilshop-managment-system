@@ -56,10 +56,16 @@ export default function OrderHistory() {
       (error) => {
         console.error('Error fetching orders:', error);
         
-        // Handle specific Firestore index errors
+        // Enhanced error handling for Firestore index errors
         if (error.code === 'failed-precondition' && error.message.includes('index')) {
           setError('Database index is being created. Please try again in a few minutes.');
           toast.error('Database is being set up. Please try again shortly.');
+        } else if (error.code === 'permission-denied') {
+          setError('Access denied. Please check your permissions.');
+          toast.error('Access denied');
+        } else if (error.code === 'unavailable') {
+          setError('Database temporarily unavailable. Please try again.');
+          toast.error('Service temporarily unavailable');
         } else {
           setError('Failed to fetch order history. Please try again.');
           toast.error('Failed to fetch order history');
@@ -116,12 +122,22 @@ export default function OrderHistory() {
             <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Orders</h3>
             <p className="text-gray-600 mb-6">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-700 transition-colors duration-200"
-            >
-              Try Again
-            </button>
+            <div className="space-y-4">
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-amber-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-amber-700 transition-colors duration-200"
+              >
+                Try Again
+              </button>
+              {error.includes('index') && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> The database is being optimized for better performance. 
+                    This usually takes 2-5 minutes to complete.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
