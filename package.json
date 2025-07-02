@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy-indexes": "npx firebase deploy --only firestore:indexes"
+    "deploy-indexes": "npx firebase deploy --only firestore:indexes --project rtc-98787"
   },
   "dependencies": {
     "lucide-react": "^0.344.0",
