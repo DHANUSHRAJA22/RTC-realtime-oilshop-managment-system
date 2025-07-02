@@ -128,10 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Create user profile
+      // Create user profile - always set role as 'customer'
       const userProfileData: Omit<User, 'id'> = {
         email,
-        role: userData.role || 'customer',
+        role: 'customer', // Hard-coded to customer only
         profile: {
           name: userData.name || '',
           phone: userData.phone || '',
@@ -143,28 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData);
       setUserProfile({ id: userCredential.user.uid, ...userProfileData });
       
-      toast.success('Account created successfully!');
+      toast.success('Customer account created successfully!');
       
-      // Navigate based on role
-      const role = userData.role || 'customer';
-      let redirectPath = '/';
-      
-      switch (role) {
-        case 'customer':
-          redirectPath = '/customer';
-          break;
-        case 'staff':
-          redirectPath = '/staff';
-          break;
-        case 'owner':
-          redirectPath = '/admin';
-          break;
-        default:
-          redirectPath = '/';
-      }
-      
+      // Always redirect to customer dashboard
       setTimeout(() => {
-        window.location.href = redirectPath;
+        window.location.href = '/customer';
       }, 100);
       
     } catch (error: any) {

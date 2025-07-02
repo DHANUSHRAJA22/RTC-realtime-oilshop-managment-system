@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import { UserRole } from '../types';
 import { Eye, EyeOff, User, Mail, Phone, MapPin, Shield } from 'lucide-react';
 import LoadingSpinner from '../components/UI/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -13,7 +12,6 @@ interface AuthFormData {
   name?: string;
   phone?: string;
   address?: string;
-  role?: UserRole;
 }
 
 export default function AuthPage() {
@@ -51,11 +49,12 @@ export default function AuthPage() {
       if (isLogin) {
         await login(data.email, data.password);
       } else {
+        // Always set role as 'customer' for new registrations
         await register(data.email, data.password, {
           name: data.name,
           phone: data.phone,
           address: data.address,
-          role: data.role || 'customer'
+          role: 'customer' // Hard-coded to customer only
         });
       }
     } catch (error) {
@@ -87,7 +86,7 @@ export default function AuthPage() {
             <Shield className="h-8 w-8 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            {isLogin ? 'Sign in to your account' : 'Create your account'}
+            {isLogin ? 'Sign in to your account' : 'Create your customer account'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             {isLogin ? "Don't have an account?" : "Already have an account?"}
@@ -150,23 +149,6 @@ export default function AuthPage() {
                     placeholder="Enter your address"
                   />
                 </div>
-                
-                <div>
-                  <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                    <Shield className="inline h-4 w-4 mr-1" />
-                    Account Type *
-                  </label>
-                  <select
-                    {...registerField('role', { required: !isLogin ? 'Please select account type' : false })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Select Account Type</option>
-                    <option value="customer">Customer</option>
-                    <option value="staff">Staff</option>
-                    <option value="owner">Owner</option>
-                  </select>
-                  {errors.role && <p className="text-red-500 text-sm mt-1">{errors.role.message}</p>}
-                </div>
               </>
             )}
             
@@ -227,30 +209,11 @@ export default function AuthPage() {
                     <span>{isLogin ? 'Signing In...' : 'Creating Account...'}</span>
                   </div>
                 ) : (
-                  isLogin ? 'Sign In' : 'Create Account'
+                  isLogin ? 'Sign In' : 'Create Customer Account'
                 )}
               </button>
             </div>
           </form>
-
-          {/* Demo Accounts */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-600 text-center mb-4">Demo Accounts (for testing):</p>
-            <div className="space-y-2 text-xs text-gray-500">
-              <div className="flex justify-between">
-                <span>Customer:</span>
-                <span>customer@demo.com / demo123</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Staff:</span>
-                <span>staff@demo.com / demo123</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Owner:</span>
-                <span>owner@demo.com / demo123</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
