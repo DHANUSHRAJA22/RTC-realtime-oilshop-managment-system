@@ -1,8 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "orders",
-      "queryScope": "COLLECTION",
+      "collectionId": "orders",
       "fields": [
         { "fieldPath": "customerId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
