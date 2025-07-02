@@ -46,9 +46,8 @@ export default function Footer() {
               <div className="flex items-start space-x-3">
                 <MapPin className="h-5 w-5 text-amber-500 mt-1" />
                 <span className="text-gray-300">
-                  123 Market Street,<br />
-                  Business District,<br />
-                  City - 400001
+                  No 103,<br />
+                  mundy street,<br />
                 </span>
               </div>
             </div>
