@@ -12,7 +12,11 @@ interface ProductCardProps {
   className?: string;
 }
 
-export default function ProductCard({ product, showStock = false, className = '' }: ProductCardProps) {
+export default function ProductCard({
+  product,
+  showStock = false,
+  className = '',
+}: ProductCardProps) {
   const { addToCart } = useCart();
   const { userProfile } = useAuth();
 
@@ -25,41 +29,42 @@ export default function ProductCard({ product, showStock = false, className = ''
   const isLowStock = product.stock <= product.lowStockAlert;
   const isOutOfStock = product.stock === 0;
 
-  // Determine image source - prioritize imageData, fallback to imageURL, then default
   const getImageSrc = () => {
-    if (product.imageData) {
-      return product.imageData;
-    }
-    if (product.imageURL) {
-      return product.imageURL;
-    }
+    if (product.imageData) return product.imageData;
+    if (product.imageURL) return product.imageURL;
     return 'https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=400';
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${className}`}>
+    <div
+      className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${className}`}
+    >
       <div className="relative aspect-w-16 aspect-h-12 bg-gray-200">
         <img
           src={getImageSrc()}
           alt={product.name}
           className="w-full h-48 object-cover"
           onError={(e) => {
-            // Fallback to default image if both imageData and imageURL fail
-            const target = e.target as HTMLImageElement;
-            if (target.src !== 'https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=400') {
-              target.src = 'https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=400';
+            const t = e.target as HTMLImageElement;
+            if (
+              t.src !==
+              'https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=400'
+            ) {
+              t.src =
+                'https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=400';
             }
           }}
         />
-        {/* Quality Badge */}
+
+        {/* Premium Badge */}
         <div className="absolute top-3 left-3">
           <div className="bg-amber-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center">
             <Star className="h-3 w-3 mr-1" />
             Premium
           </div>
         </div>
-        
-        {/* Stock Status Badge */}
+
+        {/* Stock Badge */}
         {showStock && (
           <div className="absolute top-3 right-3">
             {isOutOfStock ? (
@@ -72,7 +77,7 @@ export default function ProductCard({ product, showStock = false, className = ''
           </div>
         )}
       </div>
-      
+
       <div className="p-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-gray-900 truncate">{product.name}</h3>
@@ -80,18 +85,10 @@ export default function ProductCard({ product, showStock = false, className = ''
             {product.packaging}
           </span>
         </div>
-        
+
         <div className="flex items-center space-x-2 mb-3">
-          <StatusBadge 
-            status={product.category} 
-            variant="outline" 
-            size="sm"
-          />
-          <StatusBadge 
-            status={product.type} 
-            variant="outline" 
-            size="sm"
-          />
+          <StatusBadge status={product.category} variant="outline" size="sm" />
+          <StatusBadge status={product.type} variant="outline" size="sm" />
         </div>
 
         {showStock && (
@@ -104,10 +101,15 @@ export default function ProductCard({ product, showStock = false, className = ''
           </div>
         )}
 
+        {/* PRICE + packaging label */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <span className="text-2xl font-bold text-gray-900">₹{formatAmount(product.basePrice)}</span>
-            <span className="text-sm text-gray-500 ml-1">/{product.unit}</span>
+            <span className="text-2xl font-bold text-gray-900">
+              ₹{formatAmount(product.basePrice)}
+            </span>
+            <span className="text-sm text-gray-500 ml-1">
+              per {product.packaging}
+            </span>
           </div>
         </div>
 
@@ -134,9 +136,7 @@ export default function ProductCard({ product, showStock = false, className = ''
         )}
 
         {product.description && (
-          <div className="mt-2 text-xs text-gray-600">
-            {product.description}
-          </div>
+          <div className="mt-2 text-xs text-gray-600">{product.description}</div>
         )}
       </div>
     </div>
