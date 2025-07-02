@@ -104,7 +104,7 @@ export default function Footer() {
               © {new Date().getFullYear()} Raja Trading Co. All rights reserved.
             </p>
             <p className="text-gray-400 text-sm">
-              Built with ❤️ for better business management
+              © Dhanush Raja ❤️ 
             </p>
           </div>
         </div>
