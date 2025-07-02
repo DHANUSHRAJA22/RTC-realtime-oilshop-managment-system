@@ -32,10 +32,12 @@ service cloud.firestore {
       return isOwner() || (isAuthenticated() && request.auth.uid == userId);
     }
 
-    // Users collection
+    // Users collection - restrict creation to customers only
     match /users/{userId} {
       allow read: if isOwnerOrResourceOwner(userId);
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == userId && 
+                       request.resource.data.role == 'customer';
       allow update: if isOwnerOrResourceOwner(userId);
       allow delete: if isOwner();
     }
