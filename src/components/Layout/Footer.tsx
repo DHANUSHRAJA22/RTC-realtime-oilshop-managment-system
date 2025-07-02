@@ -48,6 +48,7 @@ export default function Footer() {
                 <span className="text-gray-300">
                   No 103,<br />
                   mundy street,<br />
+                  632002
                 </span>
               </div>
             </div>
