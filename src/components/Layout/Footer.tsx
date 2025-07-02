@@ -67,6 +67,8 @@ export default function Footer() {
               </div>
               <div className="flex items-center space-x-3">
                 
+                <div className="text-gray-300">
+                  
                 </div>
               </div>
             </div>
