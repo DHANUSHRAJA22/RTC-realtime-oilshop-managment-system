@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, addDoc, query, orderBy, onSnapshot, Timestamp, getDoc } from 'firebase/firestore';
-import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Package, AlertCircle, Search, Filter, ShoppingBag, CreditCard, Eye, X } from 'lucide-react';
+import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Package, AlertCircle, Search, Filter, ShoppingBag, CreditCard, Eye, X, Truck } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { Order, CreditRequest, Product, OrderItem } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -110,6 +110,70 @@ export default function OrdersManagement() {
       setOrderItems([]);
     } finally {
       setLoadingItems(false);
+    }
+  };
+
+  const handleProceedOrder = async (order: Order) => {
+    if (!userProfile) return;
+
+    // Check if order can be proceeded
+    if (order.status === 'delivered' || order.status === 'cancelled') {
+      toast.error('This order has already been processed');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      // Check stock availability for all items
+      const stockChecks = await Promise.all(
+        order.items.map(async (item) => {
+          const productDoc = await getDoc(doc(db, 'products', item.productId));
+          if (!productDoc.exists()) {
+            throw new Error(`Product ${item.name} not found`);
+          }
+          const product = productDoc.data() as Product;
+          return {
+            productId: item.productId,
+            productName: item.name,
+            currentStock: product.stock,
+            requiredQuantity: item.quantity,
+            hasEnoughStock: product.stock >= item.quantity
+          };
+        })
+      );
+
+      // Check if any product has insufficient stock
+      const insufficientStock = stockChecks.find(check => !check.hasEnoughStock);
+      if (insufficientStock) {
+        toast.error(`Insufficient stock for ${insufficientStock.productName}. Available: ${insufficientStock.currentStock}, Required: ${insufficientStock.requiredQuantity}`);
+        return;
+      }
+
+      // Update order status to delivered
+      await updateDoc(doc(db, 'orders', order.id), {
+        status: 'delivered',
+        deliveredAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        deliveredBy: userProfile.id
+      });
+
+      // Update stock for each product
+      await Promise.all(
+        stockChecks.map(async (check) => {
+          const newStock = check.currentStock - check.requiredQuantity;
+          await updateDoc(doc(db, 'products', check.productId), {
+            stock: newStock,
+            updatedAt: Timestamp.now()
+          });
+        })
+      );
+
+      toast.success('Order marked as delivered and stock updated successfully!');
+    } catch (error) {
+      console.error('Error proceeding order:', error);
+      toast.error('Failed to proceed order. Please try again.');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -396,13 +460,25 @@ export default function OrdersManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-3">
                           {isOrder(item) && (
-                            <button
-                              onClick={() => handleViewOrderDetails(item)}
-                              className="text-blue-600 hover:text-blue-800 transition-colors duration-200 p-1 hover:bg-blue-50 rounded"
-                              title="View Order Details"
-                            >
-                              <Eye className="h-5 w-5" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleViewOrderDetails(item)}
+                                className="text-blue-600 hover:text-blue-800 transition-colors duration-200 p-1 hover:bg-blue-50 rounded"
+                                title="View Order Details"
+                              >
+                                <Eye className="h-5 w-5" />
+                              </button>
+                              {(item.status === 'pending' || item.status === 'confirmed' || item.status === 'processing') && (
+                                <button
+                                  onClick={() => handleProceedOrder(item)}
+                                  disabled={processing}
+                                  className="text-green-600 hover:text-green-800 disabled:opacity-50 transition-colors duration-200 p-1 hover:bg-green-50 rounded"
+                                  title="Proceed Order (Mark as Delivered)"
+                                >
+                                  <Truck className="h-5 w-5" />
+                                </button>
+                              )}
+                            </>
                           )}
                           {isCreditRequest(item) && item.status === 'pending' && (
                             <>
@@ -572,6 +648,24 @@ export default function OrdersManagement() {
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">Notes</p>
                     <p className="text-sm text-gray-900">{selectedOrder.notes}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                {(selectedOrder.status === 'pending' || selectedOrder.status === 'confirmed' || selectedOrder.status === 'processing') && (
+                  <div className="border-t pt-4">
+                    <button
+                      onClick={() => {
+                        handleProceedOrder(selectedOrder);
+                        setSelectedOrder(null);
+                        setOrderItems([]);
+                      }}
+                      disabled={processing}
+                      className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    >
+                      <Truck className="h-5 w-5" />
+                      <span>{processing ? 'Processing...' : 'Mark as Delivered'}</span>
+                    </button>
                   </div>
                 )}
               </div>
