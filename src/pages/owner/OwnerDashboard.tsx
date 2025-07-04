@@ -197,7 +197,7 @@ export default function OwnerDashboard() {
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-900">Recent Sales</h2>
-              <Link to="/admin/enhanced-sales" className="text-amber-600 hover:text-amber-700 text-sm font-medium">
+              <Link to="/admin/sales-history" className="text-amber-600 hover:text-amber-700 text-sm font-medium">
                 View All
               </Link>
             </div>

@@ -54,13 +54,13 @@ export default function StatsCard({
 
   return (
     <div
-      className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 ${
+      className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 relative ${
         onClick ? 'cursor-pointer transform hover:scale-105 hover:-translate-y-1' : ''
       } ${className}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <div className="flex-1">
+        <div className="flex-1 pr-4">
           <p className="text-sm font-medium text-gray-600 mb-2 uppercase tracking-wide">{title}</p>
           <p className="text-3xl font-bold text-gray-900 mb-1">{formatValue(value)}</p>
           {subtitle && (
@@ -80,7 +80,7 @@ export default function StatsCard({
             </div>
           )}
         </div>
-        <div className={`p-4 rounded-xl ${colorClasses[color]} shadow-lg`}>
+        <div className={`p-4 rounded-xl ${colorClasses[color]} shadow-lg flex-shrink-0`}>
           <Icon className="h-8 w-8" />
         </div>
       </div>

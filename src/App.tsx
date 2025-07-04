@@ -24,6 +24,7 @@ import OwnerDashboard from './pages/owner/OwnerDashboard';
 import ProductManagement from './pages/owner/ProductManagement';
 import SalesDashboard from './pages/owner/SalesDashboard';
 import EnhancedSalesDashboard from './pages/owner/EnhancedSalesDashboard';
+import OwnerSalesHistory from './pages/owner/SalesHistory';
 import CreditApprovalPage from './pages/owner/CreditApprovalPage';
 import OrdersManagement from './pages/owner/OrdersManagement';
 import MarketCredits from './pages/owner/MarketCredits';
@@ -66,6 +67,7 @@ export default function App() {
                 <Route path="/admin/products" element={<ProductManagement />} />
                 <Route path="/admin/sales" element={<SalesDashboard />} />
                 <Route path="/admin/enhanced-sales" element={<EnhancedSalesDashboard />} />
+                <Route path="/admin/sales-history" element={<OwnerSalesHistory />} />
                 <Route path="/admin/credits" element={<CreditApprovalPage />} />
                 <Route path="/admin/orders" element={<OrdersManagement />} />
                 <Route path="/admin/market-credits" element={<MarketCredits />} />
