@@ -94,7 +94,7 @@ export default function CustomerDashboard() {
             </Link>
             
             <a
-              href="tel:+919876543210"
+              href="tel:+919443328042"
               className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-200"
             >
               <div className="h-8 w-8 mx-auto mb-2 flex items-center justify-center">📞</div>

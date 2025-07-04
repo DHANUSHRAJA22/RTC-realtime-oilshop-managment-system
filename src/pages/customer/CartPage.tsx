@@ -212,7 +212,7 @@ export default function CartPage() {
 
               <div className="mt-4 space-y-2">
                 <a
-                  href="tel:+919876543210"
+                  href="tel:+919443328042"
                   className="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 transition-colors duration-200 flex items-center justify-center space-x-2"
                 >
                   <Phone className="h-4 w-4" />
@@ -220,7 +220,7 @@ export default function CartPage() {
                 </a>
                 
                 <a
-                  href="https://wa.me/919876543210"
+                  href="https://wa.me/919443328042"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full bg-green-500 text-white py-2 rounded-lg font-medium hover:bg-green-600 transition-colors duration-200 flex items-center justify-center space-x-2"
