@@ -30,6 +30,8 @@ import OrdersManagement from './pages/owner/OrdersManagement';
 import MarketCredits from './pages/owner/MarketCredits';
 import BillDetail from './components/bills/BillDetail';
 import PrintBill from './components/bills/PrintBill';
+import CustomBillDetail from './components/bills/CustomBillDetail';
+import CustomPrintBill from './components/bills/CustomPrintBill';
 import LoadingSpinner from './components/UI/LoadingSpinner';
 
 export default function App() {
@@ -78,6 +80,10 @@ export default function App() {
                 {/* Bill Routes */}
                 <Route path="/bills/:billId" element={<BillDetail />} />
                 <Route path="/bills/:billId/print" element={<PrintBill />} />
+                
+                {/* Custom Bill Routes */}
+                <Route path="/custom-bills/:billId" element={<CustomBillDetail />} />
+                <Route path="/custom-bills/:billId/print" element={<CustomPrintBill />} />
                 
                 {/* Shared Routes */}
                 <Route path="/pending-payments" element={<PendingPayments />} />
