@@ -46,8 +46,27 @@ export default function BillingModule() {
   const { userProfile } = useAuth();
   const navigate = useNavigate();
 
-  const { register, handleSubmit, reset, formState: { errors }, watch } = useForm<BillFormData>();
-  const { register: registerCustom, handleSubmit: handleSubmitCustom, reset: resetCustom, formState: { errors: errorsCustom } } = useForm<CustomBillFormData>();
+  const { register, handleSubmit, reset, formState: { errors }, watch } = useForm<BillFormData>({
+    defaultValues: {
+      customerName: '',
+      customerPhone: '',
+      customerAddress: '',
+      paymentMethod: 'cash',
+      discountAmount: 0,
+      notes: ''
+    }
+  });
+  
+  const { register: registerCustom, handleSubmit: handleSubmitCustom, reset: resetCustom, formState: { errors: errorsCustom } } = useForm<CustomBillFormData>({
+    defaultValues: {
+      customerName: '',
+      customerPhone: '',
+      customerAddress: '',
+      paymentMethod: 'cash',
+      discountAmount: 0,
+      notes: ''
+    }
+  });
 
   useEffect(() => {
     fetchData();
@@ -203,9 +222,11 @@ export default function BillingModule() {
       const billData: Omit<Bill, 'id'> = {
         billNumber: `BILL-${Date.now()}`,
         customerId: '',
-        customerName: data.customerName,
-        customerPhone: data.customerPhone || undefined,
-        customerAddress: data.customerAddress || undefined,
+        customerName: data.customerName.trim(),
+        // Only include customerPhone if it has content
+        ...(data.customerPhone?.trim() ? { customerPhone: data.customerPhone.trim() } : {}),
+        // Only include customerAddress if it has content
+        ...(data.customerAddress?.trim() ? { customerAddress: data.customerAddress.trim() } : {}),
         items: billItems,
         subtotal: parseNumber(subtotal),
         discountAmount: parseNumber(discountAmount),
@@ -214,7 +235,7 @@ export default function BillingModule() {
         paymentStatus: data.paymentMethod === 'credit' ? 'pending' : 'paid',
         staffId: userProfile.id,
         staffName: userProfile.profile.name,
-        notes: data.notes,
+        notes: data.notes?.trim() || '',
         createdAt: Timestamp.now()
       };
 
@@ -284,9 +305,11 @@ export default function BillingModule() {
 
       const customBillData: Omit<CustomBill, 'id'> = {
         billNumber: `CUSTOM-${Date.now()}`,
-        customerName: data.customerName,
-        customerPhone: data.customerPhone || undefined,
-        customerAddress: data.customerAddress || undefined,
+        customerName: data.customerName.trim(),
+        // Only include customerPhone if it has content
+        ...(data.customerPhone?.trim() ? { customerPhone: data.customerPhone.trim() } : {}),
+        // Only include customerAddress if it has content
+        ...(data.customerAddress?.trim() ? { customerAddress: data.customerAddress.trim() } : {}),
         items: customBillItems,
         subtotal: parseNumber(subtotal),
         discountAmount: parseNumber(discountAmount),
@@ -295,7 +318,7 @@ export default function BillingModule() {
         paymentStatus: data.paymentMethod === 'credit' ? 'pending' : 'paid',
         staffId: userProfile.id,
         staffName: userProfile.profile.name,
-        notes: data.notes,
+        notes: data.notes?.trim() || '',
         createdAt: Timestamp.now()
       };
 

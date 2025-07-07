@@ -81,8 +81,8 @@ export interface Bill {
   billNumber: string;
   customerId: string;
   customerName: string;
-  customerPhone?: string; // Made optional
-  customerAddress?: string; // Made optional
+  customerPhone?: string | null; // Allow undefined or null
+  customerAddress?: string | null; // Allow undefined or null
   items: BillItem[];
   subtotal: number;
   discountAmount: number;
@@ -109,8 +109,8 @@ export interface CustomBill {
   id: string;
   billNumber: string;
   customerName: string;
-  customerPhone?: string;
-  customerAddress?: string;
+  customerPhone?: string | null; // Allow undefined or null
+  customerAddress?: string | null; // Allow undefined or null
   items: CustomBillItem[];
   subtotal: number;
   discountAmount: number;
