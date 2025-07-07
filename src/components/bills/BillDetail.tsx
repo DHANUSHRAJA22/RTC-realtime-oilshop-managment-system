@@ -29,7 +29,6 @@ export default function BillDetail() {
           ...billData,
           // Ensure numeric fields are properly converted
           subtotal: Number(billData.subtotal) || 0,
-          taxAmount: Number(billData.taxAmount) || 0,
           discountAmount: Number(billData.discountAmount) || 0,
           totalAmount: Number(billData.totalAmount) || 0
         } as Bill);
@@ -134,7 +133,7 @@ export default function BillDetail() {
               <h2 className="text-lg font-semibold mb-3">Customer Details</h2>
               <div className="space-y-2">
                 <p><span className="font-medium">Name:</span> {bill.customerName}</p>
-                <p><span className="font-medium">Phone:</span> {bill.customerPhone}</p>
+                <p><span className="font-medium">Phone:</span> {bill.customerPhone || 'Not provided'}</p>
                 {bill.customerAddress && (
                   <p><span className="font-medium">Address:</span> {bill.customerAddress}</p>
                 )}
@@ -193,10 +192,6 @@ export default function BillDetail() {
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span>₹{bill.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tax (18%):</span>
-                    <span>₹{bill.taxAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Discount:</span>

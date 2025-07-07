@@ -40,7 +40,6 @@ export default function PrintBill() {
           ...billData,
           // Ensure numeric fields are properly converted
           subtotal: Number(billData.subtotal) || 0,
-          taxAmount: Number(billData.taxAmount) || 0,
           discountAmount: Number(billData.discountAmount) || 0,
           totalAmount: Number(billData.totalAmount) || 0
         } as Bill);
@@ -115,8 +114,8 @@ export default function PrintBill() {
             <div className="text-center border-b-2 border-gray-300 pb-6 mb-6">
               <h1 className="text-3xl font-bold text-amber-600 mb-2">Raja Trading Company</h1>
               <p className="text-gray-600">Premium Quality Oils Since 1970</p>
-              <p className="text-sm text-gray-500">Phone: +91 98765 43210 | Email: info@rajatrading.com</p>
-              <p className="text-sm text-gray-500">123 Bazaar Street, City</p>
+              <p className="text-sm text-gray-500">Phone: +91 94433 28042 | Email: rdhanush22raja@gmail.com</p>
+              <p className="text-sm text-gray-500">No 103, Mundy Street, Vellore 632002</p>
             </div>
 
             {/* Bill Info */}
@@ -136,7 +135,7 @@ export default function PrintBill() {
                 <h2 className="text-xl font-semibold mb-4">Customer Details</h2>
                 <div className="space-y-2">
                   <p><strong>Name:</strong> {bill.customerName}</p>
-                  <p><strong>Phone:</strong> {bill.customerPhone}</p>
+                  <p><strong>Phone:</strong> {bill.customerPhone || 'Not provided'}</p>
                   {bill.customerAddress && (
                     <p><strong>Address:</strong> {bill.customerAddress}</p>
                   )}
@@ -182,10 +181,6 @@ export default function PrintBill() {
                   <div className="flex justify-between py-2">
                     <span>Subtotal:</span>
                     <span>₹{bill.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span>Tax (18%):</span>
-                    <span>₹{bill.taxAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between py-2">
                     <span>Discount:</span>

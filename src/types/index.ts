@@ -81,11 +81,10 @@ export interface Bill {
   billNumber: string;
   customerId: string;
   customerName: string;
-  customerPhone: string;
-  customerAddress: string;
+  customerPhone?: string; // Made optional
+  customerAddress?: string; // Made optional
   items: BillItem[];
   subtotal: number;
-  taxAmount: number;
   discountAmount: number;
   totalAmount: number;
   paymentMethod: 'cash' | 'gpay' | 'credit' | 'upi';
@@ -97,9 +96,36 @@ export interface Bill {
 }
 
 export interface BillItem {
-  productId: string;
+  productId?: string; // Made optional for custom bills
   productName: string;
   quantity: number; // enforced as integer
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+// New interface for Custom Bills
+export interface CustomBill {
+  id: string;
+  billNumber: string;
+  customerName: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  items: CustomBillItem[];
+  subtotal: number;
+  discountAmount: number;
+  totalAmount: number;
+  paymentMethod: 'cash' | 'gpay' | 'credit' | 'upi';
+  paymentStatus: 'paid' | 'pending' | 'partial';
+  staffId: string;
+  staffName: string;
+  notes?: string;
+  createdAt: Timestamp;
+}
+
+export interface CustomBillItem {
+  productName: string;
+  quantity: number;
   unit: string;
   unitPrice: number;
   totalPrice: number;
@@ -295,4 +321,20 @@ export interface MarketCredit {
   createdByName: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export interface Collection {
+  id: string;
+  amount: number;
+  collectedBy: string;
+  collectedByName: string;
+  collectedAt: Timestamp;
+  notes?: string;
+}
+
+export interface CustomerBalance {
+  creditAmount: number;
+  totalCollected: number;
+  outstanding: number;
+  collections: Collection[];
 }
