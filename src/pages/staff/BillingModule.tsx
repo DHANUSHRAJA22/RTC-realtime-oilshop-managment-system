@@ -369,7 +369,7 @@ export default function BillingModule() {
   const handleViewBill = (billId: string, isCustom: boolean = false) => {
     if (isCustom) {
       // For now, we'll show an alert. You can implement a custom bill view later
-      toast.info('Custom bill view coming soon!');
+      toast('Custom bill view coming soon!');
     } else {
       navigate(`/bills/${billId}`);
     }
@@ -377,7 +377,7 @@ export default function BillingModule() {
 
   const handlePrintBill = (billId: string, isCustom: boolean = false) => {
     if (isCustom) {
-      toast.info('Custom bill printing coming soon!');
+      toast('Custom bill printing coming soon!');
     } else {
       navigate(`/bills/${billId}/print`);
     }
