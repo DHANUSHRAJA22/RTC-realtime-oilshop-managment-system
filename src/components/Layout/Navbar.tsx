@@ -95,7 +95,6 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <img src="/rtc.logo.png" alt="Raja Trading Co." className="h-10 w-auto" />
-            </span>
           </Link>
 
           {/* Desktop Navigation */}
