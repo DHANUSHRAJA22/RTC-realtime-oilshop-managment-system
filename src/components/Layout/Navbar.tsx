@@ -94,11 +94,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
-            <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-2 rounded-lg shadow-lg">
-              <Store className="h-8 w-8 text-white" />
-            </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-amber-700 bg-clip-text text-transparent">
-              Raja Trading Co.
+            <img src="/rtc.logo.png" alt="Raja Trading Co." className="h-10 w-auto" />
             </span>
           </Link>
 
