@@ -37,7 +37,8 @@ export default function ProductManagement() {
     { value: 'groundnut', label: 'Groundnut Oil' },
     { value: 'gingelly', label: 'Gingelly Oil' },
     { value: 'mustard', label: 'Mustard Oil' },
-    { value: 'coconut', label: 'Coconut Oil' }
+    { value: 'coconut', label: 'Coconut Oil' },
+    { value: 'vanaspathi', label: 'Vanaspathi' }
   ];
 
   const descriptions = [
@@ -275,6 +276,7 @@ export default function ProductManagement() {
                     <option value="tin">Tin</option>
                     <option value="can">Can</option>
                     <option value="bottle">Bottle</option>
+                    <option value="box">Box</option>
                   </select>
                   {errors.packaging && <p className="text-red-500 text-sm mt-1">{errors.packaging.message}</p>}
                 </div>
