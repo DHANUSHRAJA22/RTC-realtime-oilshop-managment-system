@@ -120,8 +120,8 @@ export default function POSPanel() {
       const saleRecord: Omit<Sale, 'id'> = {
         productId: selectedProduct.id,
         productName: selectedProduct.name,
-        customerName: saleData.customerName || 'customer',
-        customerPhone: saleData.customerPhone || 'nil',
+        customerName: saleData.customerName,
+        customerPhone: saleData.customerPhone,
         quantity: parseInteger(saleData.quantity),
         unit: selectedProduct.unit,
         unitPrice: parseNumber(selectedProduct.basePrice),
@@ -331,23 +331,25 @@ export default function POSPanel() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     <User className="inline h-5 w-5 mr-2 text-amber-600" />
-                    Customer Name (Optional)
+                    Customer Name *
                   </label>
                   <input
-                    {...register('customerName')}
+                    {...register('customerName', { required: 'Customer name is required' })}
                     type="text"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
-                    placeholder="Enter customer name (optional)"
+                    placeholder="Enter customer name"
                   />
+                  {errors.customerName && <p className="text-red-500 text-sm mt-2">{errors.customerName.message}</p>}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     <Phone className="inline h-5 w-5 mr-2 text-amber-600" />
-                    Phone Number (Optional)
+                    Phone Number *
                   </label>
                   <input
-                    {...register('customerPhone', {
+                    {...register('customerPhone', { 
+                      required: 'Phone number is required',
                       pattern: {
                         value: /^[6-9]\d{9}$/,
                         message: 'Please enter a valid 10-digit phone number'
@@ -355,7 +357,7 @@ export default function POSPanel() {
                     })}
                     type="tel"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
-                    placeholder="Enter phone number (optional)"
+                    placeholder="Enter phone number"
                   />
                   {errors.customerPhone && <p className="text-red-500 text-sm mt-2">{errors.customerPhone.message}</p>}
                 </div>
