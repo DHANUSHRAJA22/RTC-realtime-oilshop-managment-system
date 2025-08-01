@@ -320,13 +320,6 @@ export default function SalesHistory() {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => navigate(`/admin/sales/${sale.id}/print`)}
-                        className="text-blue-600 hover:text-blue-900 ml-3"
-                        title="Print Sale"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </button>
                     </td>
                   </tr>
                 ))}
