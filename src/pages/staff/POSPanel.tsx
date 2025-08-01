@@ -120,8 +120,8 @@ export default function POSPanel() {
       const saleRecord: Omit<Sale, 'id'> = {
         productId: selectedProduct.id,
         productName: selectedProduct.name,
-        customerName: saleData.customerName,
-        customerPhone: saleData.customerPhone,
+        customerName: saleData.customerName || 'customer',
+        customerPhone: saleData.customerPhone || 'nil',
         quantity: parseInteger(saleData.quantity),
         unit: selectedProduct.unit,
         unitPrice: parseNumber(selectedProduct.basePrice),

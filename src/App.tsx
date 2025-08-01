@@ -85,6 +85,10 @@ export default function App() {
                 <Route path="/custom-bills/:billId" element={<CustomBillDetail />} />
                 <Route path="/custom-bills/:billId/print" element={<CustomPrintBill />} />
                 
+                {/* Sales Print Routes */}
+                <Route path="/admin/sales/:saleId/print" element={<PrintSale />} />
+                <Route path="/staff/sales/:saleId/print" element={<PrintSale />} />
+                
                 {/* Shared Routes */}
                 <Route path="/pending-payments" element={<PendingPayments />} />
               </Routes>
