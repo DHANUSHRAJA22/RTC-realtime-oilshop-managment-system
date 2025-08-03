@@ -33,6 +33,7 @@ import PrintBill from './components/bills/PrintBill';
 import CustomBillDetail from './components/bills/CustomBillDetail';
 import CustomPrintBill from './components/bills/CustomPrintBill';
 import LoadingSpinner from './components/UI/LoadingSpinner';
+import PrintSale from './components/sales/PrintSale';
 
 export default function App() {
   return (
