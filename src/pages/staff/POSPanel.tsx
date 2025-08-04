@@ -120,8 +120,8 @@ export default function POSPanel() {
       const saleRecord: Omit<Sale, 'id'> = {
         productId: selectedProduct.id,
         productName: selectedProduct.name,
-        customerName: saleData.customerName,
-        customerPhone: saleData.customerPhone,
+        customerName: saleData.customerName.trim() || 'customer',
+        customerPhone: saleData.customerPhone.trim() || 'nil',
         quantity: parseInteger(saleData.quantity),
         unit: selectedProduct.unit,
         unitPrice: parseNumber(selectedProduct.basePrice),
@@ -145,7 +145,12 @@ export default function POSPanel() {
 
       // Handle credit if applicable
       if (parseNumber(saleData.creditAmount, 0) > 0) {
-        await updateCustomerCredit(saleData.customerName, saleData.customerPhone, parseNumber(saleData.creditAmount), saleDocRef.id);
+        await updateCustomerCredit(
+          saleData.customerName.trim() || 'customer', 
+          saleData.customerPhone.trim() || 'nil', 
+          parseNumber(saleData.creditAmount), 
+          saleDocRef.id
+        );
       }
 
       // Create pending payment record if there's a pending amount
@@ -177,8 +182,8 @@ export default function POSPanel() {
     try {
       const pendingPaymentData: Omit<PendingPayment, 'id'> = {
         saleId,
-        customerName: saleData.customerName,
-        customerPhone: saleData.customerPhone,
+        customerName: saleData.customerName.trim() || 'customer',
+        customerPhone: saleData.customerPhone.trim() || 'nil',
         productName: saleData.productName,
         totalAmount: parseNumber(saleData.totalAmount),
         paidAmount: parseNumber(saleData.paidAmount, 0),
@@ -331,25 +336,23 @@ export default function POSPanel() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     <User className="inline h-5 w-5 mr-2 text-amber-600" />
-                    Customer Name *
+                    Customer Name (Optional)
                   </label>
                   <input
-                    {...register('customerName', { required: 'Customer name is required' })}
+                    {...register('customerName')}
                     type="text"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
-                    placeholder="Enter customer name"
+                    placeholder="Enter customer name (optional)"
                   />
-                  {errors.customerName && <p className="text-red-500 text-sm mt-2">{errors.customerName.message}</p>}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     <Phone className="inline h-5 w-5 mr-2 text-amber-600" />
-                    Phone Number *
+                    Phone Number (Optional)
                   </label>
                   <input
-                    {...register('customerPhone', { 
-                      required: 'Phone number is required',
+                    {...register('customerPhone', {
                       pattern: {
                         value: /^[6-9]\d{9}$/,
                         message: 'Please enter a valid 10-digit phone number'
@@ -357,7 +360,7 @@ export default function POSPanel() {
                     })}
                     type="tel"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors duration-200"
-                    placeholder="Enter phone number"
+                    placeholder="Enter phone number (optional)"
                   />
                   {errors.customerPhone && <p className="text-red-500 text-sm mt-2">{errors.customerPhone.message}</p>}
                 </div>
