@@ -32,8 +32,8 @@ import BillDetail from './components/bills/BillDetail';
 import PrintBill from './components/bills/PrintBill';
 import CustomBillDetail from './components/bills/CustomBillDetail';
 import CustomPrintBill from './components/bills/CustomPrintBill';
-import LoadingSpinner from './components/UI/LoadingSpinner';
 import PrintSale from './components/sales/PrintSale';
+import LoadingSpinner from './components/UI/LoadingSpinner';
 
 export default function App() {
   return (
@@ -87,8 +87,8 @@ export default function App() {
                 <Route path="/custom-bills/:billId/print" element={<CustomPrintBill />} />
                 
                 {/* Sales Print Routes */}
-                <Route path="/admin/sales/:saleId/print" element={<div>Print functionality coming soon</div>} />
-                <Route path="/staff/sales/:saleId/print" element={<div>Print functionality coming soon</div>} />
+                <Route path="/admin/sales/:saleId/print" element={<PrintSale />} />
+                <Route path="/staff/sales/:saleId/print" element={<PrintSale />} />
                 
                 {/* Shared Routes */}
                 <Route path="/pending-payments" element={<PendingPayments />} />
