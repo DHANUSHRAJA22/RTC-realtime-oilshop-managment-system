@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
-import { Search, Filter, Calendar, Download, Eye } from 'lucide-react';
+import { Search, Filter, Calendar, Download, Eye, Printer } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { Sale } from '../../types';
 import { format } from 'date-fns';
